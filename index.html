@@ -59,6 +59,8 @@ main{max-width:720px;margin:0 auto;padding:18px 14px 50px;}
 .task-date{font-size:11px;color:var(--text3);}
 .del-btn{font-size:18px;color:var(--text3);cursor:pointer;padding:0 3px;flex-shrink:0;}
 .del-btn:hover{color:var(--danger);}
+.edit-btn{font-size:15px;color:var(--text3);cursor:pointer;padding:0 3px;flex-shrink:0;}
+.edit-btn:hover{color:var(--accent);}
 .appt-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:0.5px solid var(--border);}
 .appt-item:last-child{border-bottom:none;padding-bottom:0;}
 .appt-item:first-child{padding-top:0;}
@@ -639,7 +641,10 @@ function taskHTML(t) {
         ${t.note?`<span class="task-date">${esc(t.note)}</span>`:''}
       </div>
     </div>
-    <div class="del-btn" onclick="deleteTask('${t.id}')">×</div>
+    <div style="display:flex;gap:2px;flex-shrink:0;">
+      <div class="edit-btn" onclick="editTask('${t.id}')">✎</div>
+      <div class="del-btn" onclick="deleteTask('${t.id}')">×</div>
+    </div>
   </div>`;
 }
 
@@ -655,7 +660,10 @@ function apptHTML(a,past) {
       <div class="appt-detail">${a.cat}${a.time?' · '+a.time:''}${a.note?' · '+esc(a.note):''}</div>
     </div>
     <div class="who-badges">${whoBadges(a.who)}</div>
-    <div class="del-btn" onclick="deleteAppt('${a.id}')">×</div>
+    <div style="display:flex;gap:2px;flex-shrink:0;">
+      <div class="edit-btn" onclick="editAppt('${a.id}')">✎</div>
+      <div class="del-btn" onclick="deleteAppt('${a.id}')">×</div>
+    </div>
   </div>`;
 }
 
@@ -681,19 +689,37 @@ function openTaskModal() {
   resetPicker('t-who-picker'); buildPicker('t-who-picker');
   document.getElementById('task-modal').classList.add('open');
 }
-function closeModal(id){document.getElementById(id).classList.remove('open');}
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  if(id==='appt-modal'){ editingApptId=null; document.querySelector('#appt-modal .modal-title').textContent='添加预约'; }
+  if(id==='task-modal'){ editingTaskId=null; document.querySelector('#task-modal .modal-title').textContent='添加任务'; }
+}
 
 function saveAppt() {
   const title=document.getElementById('a-title').value.trim();
   const date=document.getElementById('a-date').value;
   if(!title||!date){alert('请填写标题和日期');return;}
-  appState.appts.push({id:uid(),title,date,time:document.getElementById('a-time').value,cat:document.getElementById('a-cat').value,who:getPickerValue('a-who-picker'),note:document.getElementById('a-note').value.trim(),created:new Date().toISOString()});
+  if(editingApptId) {
+    const a = appState.appts.find(a=>a.id===editingApptId);
+    if(a){ a.title=title; a.date=date; a.time=document.getElementById('a-time').value; a.cat=document.getElementById('a-cat').value; a.who=getPickerValue('a-who-picker'); a.note=document.getElementById('a-note').value.trim(); }
+    editingApptId=null;
+  } else {
+    appState.appts.push({id:uid(),title,date,time:document.getElementById('a-time').value,cat:document.getElementById('a-cat').value,who:getPickerValue('a-who-picker'),note:document.getElementById('a-note').value.trim(),created:new Date().toISOString()});
+  }
+  document.querySelector('#appt-modal .modal-title').textContent='添加预约';
   closeModal('appt-modal'); saveAndSync();
 }
 
 function saveTask() {
   const title=document.getElementById('t-title').value.trim(); if(!title){alert('请填写任务内容');return;}
-  appState.tasks.push({id:uid(),title,pri:document.getElementById('t-pri').value,who:getPickerValue('t-who-picker'),due:document.getElementById('t-due').value,note:document.getElementById('t-note').value.trim(),done:false,created:new Date().toISOString()});
+  if(editingTaskId) {
+    const t = appState.tasks.find(t=>t.id===editingTaskId);
+    if(t){ t.title=title; t.pri=document.getElementById('t-pri').value; t.who=getPickerValue('t-who-picker'); t.due=document.getElementById('t-due').value; t.note=document.getElementById('t-note').value.trim(); }
+    editingTaskId=null;
+  } else {
+    appState.tasks.push({id:uid(),title,pri:document.getElementById('t-pri').value,who:getPickerValue('t-who-picker'),due:document.getElementById('t-due').value,note:document.getElementById('t-note').value.trim(),done:false,created:new Date().toISOString()});
+  }
+  document.querySelector('#task-modal .modal-title').textContent='添加任务';
   closeModal('task-modal'); saveAndSync();
 }
 
@@ -703,6 +729,42 @@ function toggleTask(id) {
 }
 function deleteTask(id){appState.tasks=appState.tasks.filter(t=>t.id!==id);saveAndSync();}
 function deleteAppt(id){appState.appts=appState.appts.filter(a=>a.id!==id);saveAndSync();}
+
+let editingTaskId = null;
+let editingApptId = null;
+
+function editTask(id) {
+  const t = appState.tasks.find(t=>t.id===id);
+  if(!t) return;
+  editingTaskId = id;
+  document.getElementById('t-title').value = t.title;
+  document.getElementById('t-pri').value = t.pri||'med';
+  document.getElementById('t-due').value = t.due||'';
+  document.getElementById('t-note').value = t.note||'';
+  resetPicker('t-who-picker');
+  const who = Array.isArray(t.who)?t.who:[t.who];
+  if(who[0]!=='全家') who.forEach(n=>{ if(!pickerSel['t-who-picker']) pickerSel['t-who-picker']=new Set(); pickerSel['t-who-picker'].add(n); });
+  buildPicker('t-who-picker');
+  document.querySelector('#task-modal .modal-title').textContent = '编辑任务';
+  document.getElementById('task-modal').classList.add('open');
+}
+
+function editAppt(id) {
+  const a = appState.appts.find(a=>a.id===id);
+  if(!a) return;
+  editingApptId = id;
+  document.getElementById('a-title').value = a.title;
+  document.getElementById('a-date').value = a.date;
+  document.getElementById('a-time').value = a.time||'';
+  document.getElementById('a-cat').value = a.cat||'其他';
+  document.getElementById('a-note').value = a.note||'';
+  resetPicker('a-who-picker');
+  const who = Array.isArray(a.who)?a.who:[a.who];
+  if(who[0]!=='全家') who.forEach(n=>{ if(!pickerSel['a-who-picker']) pickerSel['a-who-picker']=new Set(); pickerSel['a-who-picker'].add(n); });
+  buildPicker('a-who-picker');
+  document.querySelector('#appt-modal .modal-title').textContent = '编辑预约';
+  document.getElementById('appt-modal').classList.add('open');
+}
 
 function filterTasks(f,el) {
   currentFilter=f;
