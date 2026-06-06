@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="家庭助手">
+<title>家庭助手</title>
+<script src="https://accounts.google.com/gsi/client"></script>
+<style>
+:root{--bg:#f5f4f0;--surface:#fff;--surface2:#f0efe9;--border:rgba(0,0,0,0.1);--border2:rgba(0,0,0,0.18);--text:#1a1a18;--text2:#5c5c58;--text3:#9a9a94;--accent:#534AB7;--accent-bg:#EEEDFE;--accent-text:#3C3489;--success:#0F6E56;--success-bg:#E1F5EE;--success-text:#085041;--warn:#854F0B;--warn-bg:#FAEEDA;--warn-text:#633806;--danger:#993C1D;--danger-bg:#FAECE7;--danger-text:#712B13;--radius:10px;--radius-lg:14px;}
+@media(prefers-color-scheme:dark){:root{--bg:#1a1a18;--surface:#242422;--surface2:#2e2e2b;--border:rgba(255,255,255,0.1);--border2:rgba(255,255,255,0.18);--text:#f0efe9;--text2:#a8a8a0;--text3:#68685f;--accent:#AFA9EC;--accent-bg:#26215C;--accent-text:#CECBF6;--success-bg:#04342C;--success-text:#9FE1CB;--warn-bg:#412402;--warn-text:#FAC775;--danger-bg:#4A1B0C;--danger-text:#F5C4B3;}}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+nav{background:var(--surface);border-bottom:0.5px solid var(--border);height:52px;display:flex;align-items:center;padding:0 14px;position:sticky;top:0;z-index:100;gap:4px;}
+.nav-logo{font-size:16px;font-weight:600;color:var(--text);flex:1;}.nav-logo span{color:var(--accent);}
+.nav-tabs{display:flex;gap:2px;}
+.nav-tab{padding:5px 10px;border-radius:8px;font-size:13px;color:var(--text2);cursor:pointer;border:none;background:none;white-space:nowrap;}
+.nav-tab.active{background:var(--accent-bg);color:var(--accent-text);font-weight:500;}
+.nav-tab:hover:not(.active){background:var(--surface2);}
+.nav-right{display:flex;align-items:center;gap:6px;margin-left:6px;}
+.sync-btn{height:30px;padding:0 10px;border-radius:8px;border:0.5px solid var(--border2);background:none;color:var(--text2);font-size:12px;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:4px;}
+.sync-btn:hover{background:var(--surface2);}
+.sync-btn.syncing{opacity:0.6;pointer-events:none;}
+.avatar-sm{width:26px;height:26px;border-radius:50%;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;}
+main{max-width:720px;margin:0 auto;padding:18px 14px 50px;}
+.page{display:none;}.page.active{display:block;}
+.card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:12px;}
+.card-title{font-size:11px;font-weight:500;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+.metric{background:var(--surface2);border-radius:var(--radius);padding:12px;text-align:center;}
+.metric-n{font-size:24px;font-weight:600;color:var(--text);line-height:1;}
+.metric-l{font-size:11px;color:var(--text2);margin-top:3px;}
+.quick-add{display:flex;gap:6px;margin-bottom:10px;}
+.quick-add input{flex:1;font-size:14px;padding:0 10px;height:38px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);outline:none;}
+.quick-add input:focus{border-color:var(--accent);}
+.quick-add select{font-size:13px;padding:0 6px;height:38px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);outline:none;}
+.btn{height:38px;padding:0 14px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--surface);color:var(--text);font-size:13px;cursor:pointer;white-space:nowrap;transition:background .15s;}
+.btn:hover{background:var(--surface2);}
+.btn-primary{background:var(--accent-bg);color:var(--accent-text);border-color:transparent;font-weight:500;}
+.btn-sm{height:30px;padding:0 10px;font-size:12px;}
+.btn-row{display:flex;gap:6px;flex-wrap:wrap;}
+.task-item{display:flex;align-items:flex-start;gap:9px;padding:10px 0;border-bottom:0.5px solid var(--border);}
+.task-item:last-child{border-bottom:none;padding-bottom:0;}
+.task-item:first-child{padding-top:0;}
+.task-check{width:17px;height:17px;border:1.5px solid var(--border2);border-radius:5px;flex-shrink:0;margin-top:2px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.task-check.done{background:var(--success);border-color:var(--success);}
+.task-check.done::after{content:'✓';font-size:10px;color:#fff;}
+.task-body{flex:1;min-width:0;}
+.task-text{font-size:14px;color:var(--text);line-height:1.4;}
+.task-text.done{color:var(--text3);text-decoration:line-through;}
+.task-meta{display:flex;gap:5px;margin-top:4px;flex-wrap:wrap;align-items:center;}
+.badge{display:inline-flex;align-items:center;font-size:11px;font-weight:500;padding:2px 6px;border-radius:5px;}
+.b-high{background:var(--danger-bg);color:var(--danger-text);}
+.b-med{background:var(--warn-bg);color:var(--warn-text);}
+.b-low{background:var(--success-bg);color:var(--success-text);}
+.b-info{background:var(--accent-bg);color:var(--accent-text);}
+.task-date{font-size:11px;color:var(--text3);}
+.del-btn{font-size:18px;color:var(--text3);cursor:pointer;padding:0 3px;flex-shrink:0;}
+.del-btn:hover{color:var(--danger);}
+.appt-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:0.5px solid var(--border);}
+.appt-item:last-child{border-bottom:none;padding-bottom:0;}
+.appt-item:first-child{padding-top:0;}
+.appt-cal{background:var(--surface2);border-radius:8px;padding:5px 9px;text-align:center;min-width:44px;flex-shrink:0;}
+.appt-day{font-size:19px;font-weight:600;color:var(--text);line-height:1;}
+.appt-mon{font-size:10px;color:var(--text2);margin-top:1px;}
+.appt-body{flex:1;min-width:0;}
+.appt-title{font-size:14px;font-weight:500;color:var(--text);}
+.appt-detail{font-size:12px;color:var(--text2);margin-top:2px;}
+.who-badges{display:flex;flex-wrap:wrap;gap:3px;flex-shrink:0;max-width:120px;justify-content:flex-end;}
+.form-row{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+.form-row input,.form-row select,.form-row textarea{flex:1;min-width:110px;font-size:14px;padding:8px 10px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);outline:none;font-family:inherit;}
+.form-row input:focus,.form-row select:focus,.form-row textarea:focus{border-color:var(--accent);}
+.form-row textarea{height:68px;resize:vertical;}
+label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
+.sec-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.sec-title{font-size:17px;font-weight:600;color:var(--text);}
+.sec-sub{font-size:12px;color:var(--text2);margin-top:2px;}
+.empty{text-align:center;padding:24px 0;color:var(--text3);font-size:13px;}
+.modal-wrap{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:200;align-items:center;justify-content:center;padding:16px;}
+.modal-wrap.open{display:flex;}
+.modal{background:var(--surface);border-radius:var(--radius-lg);padding:18px;width:100%;max-width:440px;border:0.5px solid var(--border2);max-height:92vh;overflow-y:auto;}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:14px;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}
+.banner{background:var(--warn-bg);border-radius:var(--radius);padding:11px 13px;margin-bottom:12px;display:flex;gap:9px;align-items:flex-start;}
+.banner-text{font-size:13px;color:var(--warn-text);line-height:1.5;}
+.today-label{font-size:13px;color:var(--text2);margin-bottom:14px;}
+.filter-tabs{display:flex;gap:5px;margin-bottom:12px;flex-wrap:wrap;}
+.ftab{padding:4px 11px;border-radius:20px;font-size:12px;border:0.5px solid var(--border2);background:var(--surface);color:var(--text2);cursor:pointer;}
+.ftab.active{background:var(--accent-bg);color:var(--accent-text);border-color:transparent;font-weight:500;}
+.member-picker{display:flex;flex-wrap:wrap;gap:8px;padding:4px 0;}
+.mp-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;opacity:0.45;transition:opacity .15s;}
+.mp-item.sel{opacity:1;}
+.mp-item .av{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;border:2px solid transparent;transition:border-color .15s;}
+.mp-item.sel .av{border-color:var(--accent);}
+.mp-item .av-name{font-size:10px;color:var(--text2);white-space:nowrap;}
+.mp-all{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;opacity:0.45;}
+.mp-all.sel{opacity:1;}
+.mp-all .av{width:36px;height:36px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:18px;border:2px solid transparent;}
+.mp-all.sel .av{border-color:var(--accent);}
+.mp-all .av-name{font-size:10px;color:var(--text2);}
+.members-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:14px;}
+.member-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:14px;text-align:center;cursor:pointer;transition:border-color .15s;}
+.member-card:hover{border-color:var(--accent);}
+.member-card.selected{border:2px solid var(--accent);background:var(--accent-bg);}
+.avatar{width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;margin:0 auto 8px;}
+.member-name{font-size:14px;font-weight:500;color:var(--text);}
+.member-role{font-size:11px;color:var(--text2);margin-top:2px;}
+.member-detail{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:16px;margin-bottom:12px;}
+.detail-row{display:flex;justify-content:space-between;align-items:flex-start;padding:8px 0;border-bottom:0.5px solid var(--border);}
+.detail-row:last-child{border-bottom:none;}
+.detail-label{font-size:12px;color:var(--text2);flex-shrink:0;margin-right:12px;}
+.detail-val{font-size:13px;color:var(--text);text-align:right;}
+/* Login screen */
+.login-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:80vh;gap:20px;text-align:center;padding:20px;}
+.login-logo{font-size:48px;margin-bottom:8px;}
+.login-title{font-size:22px;font-weight:600;color:var(--text);}
+.login-sub{font-size:14px;color:var(--text2);max-width:300px;line-height:1.6;}
+/* Sync status */
+.sync-status{font-size:11px;color:var(--text3);margin-left:4px;}
+.sync-status.ok{color:var(--success);}
+.sync-status.err{color:var(--danger);}
+@media(max-width:480px){
+  .nav-tab{padding:5px 7px;font-size:12px;}
+  main{padding:12px 10px 50px;}
+  .members-grid{grid-template-columns:repeat(3,1fr);}
+  .avatar{width:40px;height:40px;font-size:14px;}
+  .mp-item .av{width:32px;height:32px;font-size:11px;}
+  .mp-all .av{width:32px;height:32px;}
+}
+</style>
+</head>
+<body>
+
+<!-- Login screen (shown when not authenticated) -->
+<div id="login-screen" class="login-screen">
+  <div class="login-logo">🏠</div>
+  <div class="login-title">家庭助手</div>
+  <div class="login-sub">登录你的 Google 账号，数据自动保存到 Google Drive，全家共享。</div>
+  <div id="g-signin-btn"></div>
+</div>
+
+<!-- Main app (hidden until authenticated) -->
+<div id="app" style="display:none">
+<nav>
+  <div class="nav-logo">家庭<span>助手</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showPage('tasks')">今日</button>
+    <button class="nav-tab" onclick="showPage('appts')">预约</button>
+    <button class="nav-tab" onclick="showPage('all-tasks')">任务</button>
+    <button class="nav-tab" onclick="showPage('members')">成员</button>
+  </div>
+  <div class="nav-right">
+    <button class="sync-btn" id="sync-btn" onclick="syncToDrive()">
+      <span id="sync-icon">☁</span>
+      <span id="sync-label">同步</span>
+    </button>
+    <div id="user-avatar" class="avatar-sm" style="background:#EEEDFE;color:#534AB7" onclick="signOut()"></div>
+  </div>
+</nav>
+
+<main>
+  <!-- 今日 -->
+  <div class="page active" id="page-tasks">
+    <div class="today-label" id="today-label"></div>
+    <div class="metrics">
+      <div class="metric"><div class="metric-n" id="m-today">0</div><div class="metric-l">今日待办</div></div>
+      <div class="metric"><div class="metric-n" id="m-appt">0</div><div class="metric-l">本周预约</div></div>
+      <div class="metric"><div class="metric-n" id="m-done">0</div><div class="metric-l">已完成</div></div>
+    </div>
+    <div id="upcoming-appts"></div>
+    <div class="card">
+      <div class="card-title">随手添加</div>
+      <div class="quick-add">
+        <input type="text" id="quick-input" placeholder="随手记下任何事…" />
+        <select id="quick-pri">
+          <option value="high">紧急</option>
+          <option value="med" selected>普通</option>
+          <option value="low">不急</option>
+        </select>
+        <button class="btn btn-primary" onclick="quickAdd()">添加</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-sm" onclick="openApptModal()">＋ 新预约</button>
+        <button class="btn btn-sm" onclick="showPage('all-tasks')">全部任务</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">今日待办</div>
+      <div id="today-list"><div class="empty">暂无今日任务</div></div>
+    </div>
+  </div>
+
+  <!-- 预约 -->
+  <div class="page" id="page-appts">
+    <div class="sec-header">
+      <div><div class="sec-title">预约管理</div><div class="sec-sub">医疗、学校、政府机构等</div></div>
+      <button class="btn btn-primary" onclick="openApptModal()">＋ 添加</button>
+    </div>
+    <div class="card">
+      <div class="card-title">即将到来</div>
+      <div id="appt-upcoming"><div class="empty">暂无预约</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">过去记录</div>
+      <div id="appt-past"><div class="empty">暂无记录</div></div>
+    </div>
+  </div>
+
+  <!-- 全部任务 -->
+  <div class="page" id="page-all-tasks">
+    <div class="sec-header">
+      <div><div class="sec-title">所有任务</div></div>
+      <button class="btn btn-primary" onclick="openTaskModal()">＋ 添加</button>
+    </div>
+    <div class="filter-tabs">
+      <button class="ftab active" onclick="filterTasks('all',this)">全部</button>
+      <button class="ftab" onclick="filterTasks('high',this)">紧急</button>
+      <button class="ftab" onclick="filterTasks('med',this)">普通</button>
+      <button class="ftab" onclick="filterTasks('low',this)">不急</button>
+      <button class="ftab" onclick="filterTasks('done',this)">已完成</button>
+    </div>
+    <div class="card"><div id="all-task-list"><div class="empty">暂无任务</div></div></div>
+  </div>
+
+  <!-- 成员 -->
+  <div class="page" id="page-members">
+    <div class="sec-header">
+      <div><div class="sec-title">家庭成员</div><div class="sec-sub">点击查看各成员详情</div></div>
+    </div>
+    <div class="members-grid" id="members-grid"></div>
+    <div id="member-detail"></div>
+  </div>
+</main>
+</div>
+
+<!-- 预约 Modal -->
+<div class="modal-wrap" id="appt-modal">
+  <div class="modal">
+    <div class="modal-title">添加预约</div>
+    <div class="form-row"><label class="fl" style="flex-basis:100%">标题</label>
+      <input type="text" id="a-title" placeholder="例：Jin 乳腺 MRI 随访" style="flex-basis:100%" />
+    </div>
+    <div class="form-row">
+      <div style="flex:1"><label class="fl">日期</label><input type="date" id="a-date" /></div>
+      <div style="flex:1"><label class="fl">时间</label><input type="time" id="a-time" /></div>
+    </div>
+    <div class="form-row">
+      <div style="flex:1"><label class="fl">类别</label>
+        <select id="a-cat"><option>医疗</option><option>牙科</option><option>学校</option><option>政府/签证</option><option>维修</option><option>其他</option></select>
+      </div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label class="fl">相关成员（可多选）</label>
+      <div class="member-picker" id="a-who-picker"></div>
+    </div>
+    <div class="form-row"><label class="fl" style="flex-basis:100%">备注</label>
+      <textarea id="a-note" placeholder="地址、注意事项…" style="flex-basis:100%"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('appt-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveAppt()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 任务 Modal -->
+<div class="modal-wrap" id="task-modal">
+  <div class="modal">
+    <div class="modal-title">添加任务</div>
+    <div class="form-row"><label class="fl" style="flex-basis:100%">任务内容</label>
+      <input type="text" id="t-title" placeholder="要做什么？" style="flex-basis:100%" />
+    </div>
+    <div class="form-row">
+      <div style="flex:1"><label class="fl">优先级</label>
+        <select id="t-pri"><option value="high">紧急</option><option value="med" selected>普通</option><option value="low">不急</option></select>
+      </div>
+      <div style="flex:1"><label class="fl">截止日期</label><input type="date" id="t-due" /></div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label class="fl">相关成员（可多选）</label>
+      <div class="member-picker" id="t-who-picker"></div>
+    </div>
+    <div class="form-row"><label class="fl" style="flex-basis:100%">备注</label>
+      <textarea id="t-note" placeholder="可选" style="flex-basis:100%"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal('task-modal')">取消</button>
+      <button class="btn btn-primary" onclick="saveTask()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID = '60509375494-6fvefnpgg5d426nnhn7vcuf1b2guf4c0.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+const DRIVE_FILE_NAME = '家庭助手_数据.json';
+const MONTHS=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const DAYS=['周日','周一','周二','周三','周四','周五','周六'];
+const PRI_LABEL={high:'紧急',med:'普通',low:'不急'};
+const PRI_CLASS={high:'b-high',med:'b-med',low:'b-low'};
+
+const MEMBERS=[
+  {id:'qi',         name:'Qi',          role:'爸爸',  initials:'Qi', color:'#534AB7',bg:'#EEEDFE'},
+  {id:'jin',        name:'Jin',         role:'妈妈',  initials:'Jin',color:'#D4537E',bg:'#FBEAF0'},
+  {id:'ryan',       name:'Ryan',        role:'大儿子',initials:'Ry', color:'#0F6E56',bg:'#E1F5EE'},
+  {id:'rainyee',    name:'Rainyee',     role:'大女儿',initials:'Ra', color:'#185FA5',bg:'#E6F1FB'},
+  {id:'richard',    name:'Richard',     role:'小儿子',initials:'Ri', color:'#BA7517',bg:'#FAEEDA'},
+  {id:'fangzesheng',name:'Fangzesheng', role:'外公',  initials:'Fz', color:'#639922',bg:'#EAF3DE'},
+  {id:'xiang',      name:'Xiang Daoxiu',role:'外婆', initials:'Xd', color:'#D85A30',bg:'#FAECE7'},
+  {id:'huxiaomei',  name:'Hu Xiaomei', role:'奶奶',  initials:'Hx', color:'#7F77DD',bg:'#EEEDFE'},
+  {id:'guomingyuan',name:'Guo Mingyuan',role:'爷爷', initials:'Gm', color:'#5F5E5A',bg:'#F1EFE8'},
+];
+
+// ── State ─────────────────────────────────────────
+let accessToken = null;
+let driveFileId = null;
+let appState = { tasks:[], appts:[], memberNotes:{} };
+let currentFilter = 'all';
+let selectedMember = null;
+const pickerSel = {};
+
+// ── Google Sign-In ────────────────────────────────
+window.addEventListener('load', function() {
+  google.accounts.id.initialize({
+    client_id: CLIENT_ID,
+    callback: handleCredentialResponse,
+    auto_select: true,
+  });
+  google.accounts.id.renderButton(document.getElementById('g-signin-btn'), {
+    theme: 'outline', size: 'large', text: 'signin_with', locale: 'zh-CN'
+  });
+  google.accounts.id.prompt();
+  const savedToken = sessionStorage.getItem('fa_token');
+  if(savedToken) {
+    accessToken = savedToken;
+    onSignedIn();
+  }
+});
+
+function handleCredentialResponse(response) {
+  // ID token received — now get access token for Drive
+  const tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (tokenResponse) => {
+      if(tokenResponse.error) { console.error(tokenResponse); return; }
+      accessToken = tokenResponse.access_token;
+      sessionStorage.setItem('fa_token', accessToken);
+      onSignedIn();
+    }
+  });
+  tokenClient.requestAccessToken({ prompt: '' });
+}
+
+function signIn() {
+  const tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: (tokenResponse) => {
+      if(tokenResponse.error) return;
+      accessToken = tokenResponse.access_token;
+      sessionStorage.setItem('fa_token', accessToken);
+      onSignedIn();
+    }
+  });
+  tokenClient.requestAccessToken({ prompt: 'consent' });
+}
+
+function signOut() {
+  if(!confirm('退出登录？')) return;
+  accessToken = null;
+  sessionStorage.removeItem('fa_token');
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  google.accounts.id.disableAutoSelect();
+}
+
+async function onSignedIn() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  // Set avatar initials from token (use first letter of email)
+  const av = document.getElementById('user-avatar');
+  if(av) av.textContent = '我';
+  // Load data from Drive
+  await loadFromDrive();
+  render();
+}
+
+// ── Google Drive ──────────────────────────────────
+async function driveRequest(url, options={}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { 'Authorization': 'Bearer ' + accessToken, ...(options.headers||{}) }
+  });
+  if(res.status === 401) {
+    // Token expired — prompt re-auth
+    sessionStorage.removeItem('fa_token');
+    signIn();
+    return null;
+  }
+  return res;
+}
+
+async function findOrCreateFile() {
+  // Search for existing file
+  const q = encodeURIComponent(`name='${DRIVE_FILE_NAME}' and trashed=false`);
+  const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`);
+  if(!res) return null;
+  const data = await res.json();
+  if(data.files && data.files.length > 0) {
+    driveFileId = data.files[0].id;
+    return driveFileId;
+  }
+  // Create new file
+  const meta = { name: DRIVE_FILE_NAME, mimeType: 'application/json' };
+  const createRes = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(meta)
+  });
+  if(!createRes) return null;
+  const created = await createRes.json();
+  driveFileId = created.id;
+  return driveFileId;
+}
+
+async function loadFromDrive() {
+  setSyncStatus('loading');
+  try {
+    const fileId = await findOrCreateFile();
+    if(!fileId) return;
+    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`);
+    if(!res) return;
+    if(res.status === 200) {
+      const text = await res.text();
+      if(text && text.trim().startsWith('{')) {
+        const data = JSON.parse(text);
+        if(data.tasks !== undefined) appState = data;
+      }
+    }
+    setSyncStatus('ok');
+  } catch(e) {
+    console.error('Load error:', e);
+    setSyncStatus('err');
+  }
+}
+
+async function syncToDrive() {
+  if(!accessToken) return;
+  const btn = document.getElementById('sync-btn');
+  btn.classList.add('syncing');
+  document.getElementById('sync-label').textContent = '同步中…';
+  try {
+    const fileId = driveFileId || await findOrCreateFile();
+    if(!fileId) throw new Error('no file id');
+    const res = await driveRequest(
+      `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appState)
+      }
+    );
+    if(!res) throw new Error('no response');
+    setSyncStatus('ok');
+    document.getElementById('sync-label').textContent = '已同步 ✓';
+    setTimeout(()=>{ document.getElementById('sync-label').textContent = '同步'; }, 2000);
+  } catch(e) {
+    console.error('Sync error:', e);
+    setSyncStatus('err');
+    document.getElementById('sync-label').textContent = '同步失败';
+    setTimeout(()=>{ document.getElementById('sync-label').textContent = '同步'; }, 3000);
+  }
+  btn.classList.remove('syncing');
+}
+
+function setSyncStatus(status) {
+  const icon = document.getElementById('sync-icon');
+  if(!icon) return;
+  if(status==='loading') icon.textContent='↻';
+  else if(status==='ok') icon.textContent='☁';
+  else icon.textContent='⚠';
+}
+
+// Auto-sync after changes
+function saveAndSync() {
+  syncToDrive();
+  render();
+}
+
+// ── Storage helpers ───────────────────────────────
+function getState() { return appState; }
+function saveState(s) { appState = s; }
+function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+
+// ── Member picker ─────────────────────────────────
+function buildPicker(containerId) {
+  const el = document.getElementById(containerId);
+  if(!el) return;
+  if(!pickerSel[containerId]) pickerSel[containerId] = new Set();
+  const sel = pickerSel[containerId];
+  const allSel = sel.size === 0;
+  let html = `<div class="mp-all${allSel?' sel':''}" onclick="toggleAll('${containerId}')">
+    <div class="av">👨‍👩‍👧‍👦</div><div class="av-name">全家</div></div>`;
+  MEMBERS.forEach(m => {
+    const on = sel.has(m.name);
+    html += `<div class="mp-item${on?' sel':''}" onclick="toggleMember('${containerId}','${m.name}')">
+      <div class="av" style="background:${m.bg};color:${m.color}">${m.initials}</div>
+      <div class="av-name">${m.name}</div></div>`;
+  });
+  el.innerHTML = html;
+}
+function toggleAll(cid) { pickerSel[cid]=new Set(); buildPicker(cid); }
+function toggleMember(cid,name) {
+  if(!pickerSel[cid]) pickerSel[cid]=new Set();
+  const s=pickerSel[cid];
+  if(s.has(name)) s.delete(name); else s.add(name);
+  buildPicker(cid);
+}
+function getPickerValue(cid) {
+  const s=pickerSel[cid];
+  return (!s||s.size===0)?['全家']:[...s];
+}
+function resetPicker(cid) { pickerSel[cid]=new Set(); buildPicker(cid); }
+
+// ── Nav ───────────────────────────────────────────
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  const idx={tasks:0,appts:1,'all-tasks':2,members:3};
+  document.querySelectorAll('.nav-tab')[idx[id]].classList.add('active');
+  render();
+}
+
+// ── Render ────────────────────────────────────────
+function render() {
+  const s = getState();
+  const today = new Date(); today.setHours(0,0,0,0);
+  const todayStr = today.toISOString().slice(0,10);
+
+  const tl = document.getElementById('today-label');
+  if(tl) tl.textContent = today.getFullYear()+'年'+(today.getMonth()+1)+'月'+today.getDate()+'日 '+DAYS[today.getDay()];
+
+  const todayTasks = s.tasks.filter(t=>!t.done&&(!t.due||t.due<=todayStr));
+  const weekAppts = s.appts.filter(a=>{const d=new Date(a.date+'T12:00:00');d.setHours(0,0,0,0);return d>=today&&(d-today)<=7*86400000;});
+  setEl('m-today',todayTasks.length);
+  setEl('m-appt',weekAppts.length);
+  setEl('m-done',s.tasks.filter(t=>t.done).length);
+
+  const bEl = document.getElementById('upcoming-appts');
+  if(bEl) {
+    const soon = weekAppts.sort((a,b)=>a.date.localeCompare(b.date));
+    bEl.innerHTML = soon.map(a=>{
+      const d=new Date(a.date+'T12:00:00');
+      const names=Array.isArray(a.who)?a.who:[a.who];
+      const whoStr=names[0]==='全家'?'':' ('+names.join(', ')+')';
+      return `<div class="banner"><div class="banner-text"><strong>${esc(a.title)}</strong> — ${d.getMonth()+1}月${d.getDate()}日${a.time?' '+a.time:''}${whoStr}<br><span style="font-size:11px">${a.cat}${a.note?' · '+esc(a.note):''}</span></div></div>`;
+    }).join('');
+  }
+
+  const todayEl = document.getElementById('today-list');
+  if(todayEl) {
+    const items = s.tasks.filter(t=>!t.done&&(!t.due||t.due<=todayStr)).sort((a,b)=>{const o={high:0,med:1,low:2};return o[a.pri]-o[b.pri];});
+    todayEl.innerHTML = items.length ? items.map(t=>taskHTML(t)).join('') : '<div class="empty">今日没有待办，添加一条吧</div>';
+  }
+
+  const allEl = document.getElementById('all-task-list');
+  if(allEl) {
+    let items = currentFilter==='done'?s.tasks.filter(t=>t.done):
+                currentFilter==='all'?s.tasks.filter(t=>!t.done):
+                s.tasks.filter(t=>!t.done&&t.pri===currentFilter);
+    items = items.sort((a,b)=>{const o={high:0,med:1,low:2};return(o[a.pri]||1)-(o[b.pri]||1);});
+    allEl.innerHTML = items.length ? items.map(t=>taskHTML(t)).join('') : '<div class="empty">没有任务</div>';
+  }
+
+  const upEl = document.getElementById('appt-upcoming');
+  const pastEl = document.getElementById('appt-past');
+  if(upEl) {
+    const up = s.appts.filter(a=>{const d=new Date(a.date+'T12:00:00');d.setHours(0,0,0,0);return d>=today;}).sort((a,b)=>a.date.localeCompare(b.date));
+    upEl.innerHTML = up.length ? up.map(a=>apptHTML(a)).join('') : '<div class="empty">暂无即将到来的预约</div>';
+  }
+  if(pastEl) {
+    const past = s.appts.filter(a=>{const d=new Date(a.date+'T12:00:00');d.setHours(0,0,0,0);return d<today;}).sort((a,b)=>b.date.localeCompare(a.date));
+    pastEl.innerHTML = past.length ? past.map(a=>apptHTML(a,true)).join('') : '<div class="empty">暂无过去记录</div>';
+  }
+
+  const mgEl = document.getElementById('members-grid');
+  if(mgEl) {
+    mgEl.innerHTML = MEMBERS.map(m=>`
+      <div class="member-card${selectedMember===m.id?' selected':''}" onclick="selectMember('${m.id}')">
+        <div class="avatar" style="background:${m.bg};color:${m.color}">${m.initials}</div>
+        <div class="member-name">${m.name}</div>
+        <div class="member-role">${m.role}</div>
+      </div>`).join('');
+  }
+
+  const mdEl = document.getElementById('member-detail');
+  if(mdEl && selectedMember) {
+    const m = MEMBERS.find(x=>x.id===selectedMember);
+    const notes = (s.memberNotes||{})[selectedMember]||'';
+    const mTasks = s.tasks.filter(t=>{ const w=Array.isArray(t.who)?t.who:[t.who]; return !t.done&&(w.includes(m.name)||w.includes('全家')); });
+    const mAppts = s.appts.filter(a=>{ const d=new Date(a.date+'T12:00:00');d.setHours(0,0,0,0); const w=Array.isArray(a.who)?a.who:[a.who]; return d>=today&&(w.includes(m.name)||w.includes('全家')); });
+    mdEl.innerHTML = `<div class="member-detail">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        <div class="avatar" style="width:52px;height:52px;font-size:17px;background:${m.bg};color:${m.color}">${m.initials}</div>
+        <div><div style="font-size:16px;font-weight:600;color:var(--text)">${m.name}</div><div style="font-size:12px;color:var(--text2)">${m.role}</div></div>
+      </div>
+      <div class="detail-row"><span class="detail-label">待办任务</span><span class="detail-val">${mTasks.length?mTasks.map(t=>`<div>${esc(t.title)}</div>`).join(''):'无'}</span></div>
+      <div class="detail-row"><span class="detail-label">即将预约</span><span class="detail-val">${mAppts.length?mAppts.map(a=>`<div>${esc(a.title)}</div>`).join(''):'无'}</span></div>
+      <div class="detail-row" style="flex-direction:column;align-items:flex-start;gap:6px;">
+        <span class="detail-label">备注</span>
+        <textarea style="width:100%;font-size:13px;padding:8px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);font-family:inherit;height:80px;resize:vertical;outline:none;" placeholder="健康备注、联系方式…" id="note-${m.id}" onchange="saveMemberNote('${m.id}')">${esc(notes)}</textarea>
+      </div>
+    </div>`;
+  } else if(mdEl) { mdEl.innerHTML=''; }
+}
+
+function setEl(id,val){const e=document.getElementById(id);if(e)e.textContent=val;}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+function whoBadges(who) {
+  const names = Array.isArray(who)?who:[who];
+  if(names.length===1&&names[0]==='全家') return `<span class="badge b-info">全家</span>`;
+  return names.map(n=>{ const m=MEMBERS.find(x=>x.name===n); return m?`<span class="badge" style="background:${m.bg};color:${m.color}">${m.name}</span>`:`<span class="badge b-info">${n}</span>`; }).join('');
+}
+
+function taskHTML(t) {
+  return `<div class="task-item">
+    <div class="task-check${t.done?' done':''}" onclick="toggleTask('${t.id}')"></div>
+    <div class="task-body">
+      <div class="task-text${t.done?' done':''}">${esc(t.title)}</div>
+      <div class="task-meta">
+        <span class="badge ${PRI_CLASS[t.pri]||'b-med'}">${PRI_LABEL[t.pri]||'普通'}</span>
+        ${whoBadges(t.who)}
+        ${t.due?`<span class="task-date">截止 ${t.due}</span>`:''}
+        ${t.note?`<span class="task-date">${esc(t.note)}</span>`:''}
+      </div>
+    </div>
+    <div class="del-btn" onclick="deleteTask('${t.id}')">×</div>
+  </div>`;
+}
+
+function apptHTML(a,past) {
+  const d = new Date(a.date+'T12:00:00');
+  return `<div class="appt-item">
+    <div class="appt-cal" style="${past?'opacity:0.5':''}">
+      <div class="appt-day">${d.getDate()}</div>
+      <div class="appt-mon">${MONTHS[d.getMonth()]}</div>
+    </div>
+    <div class="appt-body">
+      <div class="appt-title">${esc(a.title)}</div>
+      <div class="appt-detail">${a.cat}${a.time?' · '+a.time:''}${a.note?' · '+esc(a.note):''}</div>
+    </div>
+    <div class="who-badges">${whoBadges(a.who)}</div>
+    <div class="del-btn" onclick="deleteAppt('${a.id}')">×</div>
+  </div>`;
+}
+
+// ── Actions ───────────────────────────────────────
+function quickAdd() {
+  const inp = document.getElementById('quick-input');
+  const val = inp.value.trim(); if(!val) return;
+  appState.tasks.push({id:uid(),title:val,pri:document.getElementById('quick-pri').value,who:['全家'],done:false,due:'',note:'',created:new Date().toISOString()});
+  inp.value=''; saveAndSync();
+}
+
+function openApptModal() {
+  document.getElementById('a-date').value=new Date().toISOString().slice(0,10);
+  document.getElementById('a-title').value='';
+  document.getElementById('a-note').value='';
+  resetPicker('a-who-picker'); buildPicker('a-who-picker');
+  document.getElementById('appt-modal').classList.add('open');
+}
+function openTaskModal() {
+  document.getElementById('t-title').value='';
+  document.getElementById('t-note').value='';
+  document.getElementById('t-due').value='';
+  resetPicker('t-who-picker'); buildPicker('t-who-picker');
+  document.getElementById('task-modal').classList.add('open');
+}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+function saveAppt() {
+  const title=document.getElementById('a-title').value.trim();
+  const date=document.getElementById('a-date').value;
+  if(!title||!date){alert('请填写标题和日期');return;}
+  appState.appts.push({id:uid(),title,date,time:document.getElementById('a-time').value,cat:document.getElementById('a-cat').value,who:getPickerValue('a-who-picker'),note:document.getElementById('a-note').value.trim(),created:new Date().toISOString()});
+  closeModal('appt-modal'); saveAndSync();
+}
+
+function saveTask() {
+  const title=document.getElementById('t-title').value.trim(); if(!title){alert('请填写任务内容');return;}
+  appState.tasks.push({id:uid(),title,pri:document.getElementById('t-pri').value,who:getPickerValue('t-who-picker'),due:document.getElementById('t-due').value,note:document.getElementById('t-note').value.trim(),done:false,created:new Date().toISOString()});
+  closeModal('task-modal'); saveAndSync();
+}
+
+function toggleTask(id) {
+  const t=appState.tasks.find(t=>t.id===id);
+  if(t){t.done=!t.done; saveAndSync();}
+}
+function deleteTask(id){appState.tasks=appState.tasks.filter(t=>t.id!==id);saveAndSync();}
+function deleteAppt(id){appState.appts=appState.appts.filter(a=>a.id!==id);saveAndSync();}
+
+function filterTasks(f,el) {
+  currentFilter=f;
+  document.querySelectorAll('.ftab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active'); render();
+}
+
+function selectMember(id){selectedMember=(selectedMember===id)?null:id;render();}
+
+function saveMemberNote(memberId) {
+  if(!appState.memberNotes) appState.memberNotes={};
+  const el=document.getElementById('note-'+memberId);
+  if(el){appState.memberNotes[memberId]=el.value; syncToDrive();}
+}
+
+document.querySelectorAll('.modal-wrap').forEach(m=>{
+  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+});
+document.addEventListener('DOMContentLoaded',()=>{
+  const qi=document.getElementById('quick-input');
+  if(qi) qi.addEventListener('keydown',e=>{if(e.key==='Enter')quickAdd();});
+});
+</script>
+</body>
+</html>
