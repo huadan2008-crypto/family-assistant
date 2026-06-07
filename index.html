@@ -142,6 +142,11 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
   <div class="login-title">家庭助手</div>
   <div class="login-sub">登录你的 Google 账号，数据自动保存到 Google Drive，全家共享。</div>
   <div id="g-signin-btn"></div>
+  <button id="fallback-btn" onclick="triggerGoogleLogin()" style="display:none;margin-top:8px;padding:12px 24px;background:#fff;border:1px solid #dadce0;border-radius:8px;font-size:15px;color:#3c4043;cursor:pointer;align-items:center;gap:10px;font-family:-apple-system,sans-serif;">
+    <svg width='18' height='18' viewBox='0 0 18 18'><path fill='#4285F4' d='M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z'/><path fill='#34A853' d='M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z'/><path fill='#FBBC05' d='M3.964 10.706c-.18-.54-.282-1.117-.282-1.706s.102-1.166.282-1.706V4.962H.957C.347 6.175 0 7.55 0 9s.348 2.825.957 4.038l3.007-2.332z'/><path fill='#EA4335' d='M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.962L3.964 7.294C4.672 5.167 6.656 3.58 9 3.58z'/></svg>
+    使用 Google 账号登录
+  </button>
+  <p id="login-hint" style="display:none;font-size:12px;color:#999;margin-top:8px;">如果按钮无法点击，请在浏览器中打开此页面</p>
 </div>
 
 <!-- Main app (hidden until authenticated) -->
@@ -354,20 +359,45 @@ let selectedMember = null;
 const pickerSel = {};
 
 // ── Google Sign-In ────────────────────────────────
+function triggerGoogleLogin() { signIn(); }
+
 window.addEventListener('load', function() {
-  google.accounts.id.initialize({
-    client_id: CLIENT_ID,
-    callback: handleCredentialResponse,
-    auto_select: true,
-  });
-  google.accounts.id.renderButton(document.getElementById('g-signin-btn'), {
-    theme: 'outline', size: 'large', text: 'signin_with', locale: 'zh-CN'
-  });
-  google.accounts.id.prompt();
+  // Check saved token first
   const savedToken = sessionStorage.getItem('fa_token');
-  if(savedToken) {
-    accessToken = savedToken;
-    onSignedIn();
+  if(savedToken) { accessToken = savedToken; onSignedIn(); return; }
+
+  try {
+    google.accounts.id.initialize({
+      client_id: CLIENT_ID,
+      callback: handleCredentialResponse,
+      auto_select: true,
+    });
+    google.accounts.id.renderButton(document.getElementById('g-signin-btn'), {
+      theme: 'outline', size: 'large', text: 'signin_with', locale: 'zh-CN'
+    });
+    google.accounts.id.prompt();
+
+    // Check if button rendered after 1.5s, show fallback if not
+    setTimeout(function() {
+      const btn = document.getElementById('g-signin-btn');
+      if(!btn || btn.children.length === 0) {
+        document.getElementById('fallback-btn').style.display = 'flex';
+        document.getElementById('g-signin-btn').style.display = 'none';
+      }
+    }, 1000);
+    // On mobile, also show fallback immediately as backup
+    if(/Mobi|Android|iPhone|iPad/i.test(navigator.userAgent)) {
+      setTimeout(function(){
+        const btn = document.getElementById('g-signin-btn');
+        if(!btn || btn.children.length === 0) {
+          document.getElementById('fallback-btn').style.display = 'flex';
+        }
+      }, 500);
+    }
+  } catch(e) {
+    // Google script failed to load, show fallback
+    document.getElementById('fallback-btn').style.display = 'flex';
+    document.getElementById('login-hint').style.display = 'block';
   }
 });
 
