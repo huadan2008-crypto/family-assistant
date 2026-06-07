@@ -572,8 +572,8 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const idx={tasks:0,appts:1,'all-tasks':2,members:3};
-  document.querySelectorAll('.nav-tab')[idx[id]].classList.add('active');
+  const idx={tasks:0,appts:1,'all-tasks':2,members:3,ai:4};
+  if(idx[id]!==undefined) document.querySelectorAll('.nav-tab')[idx[id]].classList.add('active');
   render();
 }
 
