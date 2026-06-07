@@ -831,9 +831,7 @@ function buildSystemPrompt() {
 
   const tasks = (appState.tasks||[]).filter(t=>!t.done);
   const upcoming = (appState.appts||[]).filter(a=>{
-    const d=new Date(a.date+'T12:00:00'); d.setHours(0,0,0,0);
-    const diff=(d-today)/(1000*60*60*24);
-    return diff>=0&&diff<=14;
+    return a.date >= todayStr && a.date <= new Date(today.getTime()+14*24*60*60*1000).toISOString().slice(0,10);
   }).sort((a,b)=>a.date.localeCompare(b.date));
 
   let sys = `你是Jin的私人家庭AI秘书，今天是${todayLabel}（${todayStr}）。你了解家庭的所有任务和预约，能直接操作数据。
@@ -847,6 +845,13 @@ function buildSystemPrompt() {
     sys+=`- ID:${t.id} ${pri}【${t.title}】截止:${t.due||'未设定'} 负责:${who}${t.note&&t.note!=='无'?' 备注:'+t.note:''}\n`;
   });}
 
+  const todayAppts = upcoming.filter(a=>a.date===todayStr);
+  sys+='\n【今天的预约（必须在简报中列出）】\n';
+  if(todayAppts.length===0){sys+='（今天无预约）\n';}
+  else{todayAppts.forEach(a=>{
+    const who=Array.isArray(a.who)?a.who.join('、'):(a.who||'');
+    sys+=`- ${a.time||'全天'} 【${a.title}】参与:${who}\n`;
+  });}
   sys+='\n【未来14天预约】\n';
   if(upcoming.length===0){sys+='（无）\n';}
   else{upcoming.forEach(a=>{
@@ -869,6 +874,7 @@ function buildSystemPrompt() {
 多个操作用数组：[{"op":"addTask",...},{"op":"doneTask",...}]
 
 【重要规则】
+- 生成简报时必须第一段列出今天的所有预约（包括时间和参与人），即使没有任务也要列出
 - 用中文回复，语气专业友好
 - 回复简洁，重点突出，不要废话
 - 操作前先说明你要做什么，操作后告诉用户完成了
@@ -947,13 +953,16 @@ function renderAIMessage(role, text) {
   const div = document.createElement('div');
   div.className = `ai-msg ai-msg-${role}`;
 
-  // Convert simple markdown-like to HTML
+  // Convert markdown to HTML
   let html = text
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
-    .replace(/^#{1,3} (.+)$/gm,'<h4>$1</h4>')
-    .replace(/^[-•] (.+)$/gm,'<li>$1</li>')
-    .replace(/(<li>.*<\/li>)/s,'<ul>$1</ul>')
-    .replace(/\n\n/g,'<br><br>')
+    .replace(/^#{1,3} (.+)$/gm,'<h4 style="margin:10px 0 4px;color:var(--accent-text)">$1</h4>')
+    .replace(/^---$/gm,'<hr style="border:none;border-top:0.5px solid var(--border);margin:8px 0">')
+    .replace(/^[-•*] (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>[\s\S]*?<\/li>)/g,'<ul style="padding-left:16px;margin:4px 0">$1</ul>')
+    .replace(/\n\n/g,'<br>')
     .replace(/\n/g,'<br>');
 
   div.innerHTML = `<div class="ai-msg-bubble">${html}</div>`;
