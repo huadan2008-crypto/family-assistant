@@ -825,13 +825,17 @@ let aiHistory = [];
 
 function buildSystemPrompt() {
   const today = new Date();
-  const todayStr = today.toISOString().slice(0,10);
+  // 用本地时间生成日期字符串，避免UTC偏差
+  const pad = n=>String(n).padStart(2,'0');
+  const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
   const days = ['周日','周一','周二','周三','周四','周五','周六'];
   const todayLabel = `${today.getMonth()+1}月${today.getDate()}日 ${days[today.getDay()]}`;
 
   const tasks = (appState.tasks||[]).filter(t=>!t.done);
   const upcoming = (appState.appts||[]).filter(a=>{
-    return a.date >= todayStr && a.date <= new Date(today.getTime()+14*24*60*60*1000).toISOString().slice(0,10);
+    const end = new Date(today.getTime()+14*24*60*60*1000);
+    const endStr = \`\${end.getFullYear()}-\${String(end.getMonth()+1).padStart(2,'0')}-\${String(end.getDate()).padStart(2,'0')}\`;
+    return a.date >= todayStr && a.date <= endStr;
   }).sort((a,b)=>a.date.localeCompare(b.date));
 
   let sys = `你是Jin的私人家庭AI秘书，今天是${todayLabel}（${todayStr}）。你了解家庭的所有任务和预约，能直接操作数据。
