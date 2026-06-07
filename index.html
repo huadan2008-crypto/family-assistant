@@ -131,6 +131,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
   .mp-item .av{width:32px;height:32px;font-size:11px;}
   .mp-all .av{width:32px;height:32px;}
 }
+.ai-msg{display:flex;flex-direction:column;gap:2px;}.ai-msg-user{align-items:flex-end;}.ai-msg-system,.ai-msg-ai{align-items:flex-start;}.ai-msg-bubble{max-width:85%;padding:10px 13px;border-radius:14px;font-size:13px;line-height:1.6;}.ai-msg-user .ai-msg-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px;}.ai-msg-ai .ai-msg-bubble,.ai-msg-system .ai-msg-bubble{background:var(--surface2);color:var(--text);border-bottom-left-radius:4px;}.ai-msg-ai .ai-msg-bubble h4{font-size:13px;font-weight:600;margin:8px 0 4px;color:var(--accent-text);}.ai-msg-ai .ai-msg-bubble ul{padding-left:16px;margin:4px 0;}.ai-msg-ai .ai-msg-bubble li{margin:3px 0;}.ai-thinking{opacity:0.6;font-style:italic;}.ai-action-bar{background:var(--accent-bg);border-radius:10px;padding:10px 12px;margin-top:6px;font-size:12px;color:var(--accent-text);}.ai-action-btn{display:inline-block;margin:4px 4px 0 0;padding:4px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--surface);color:var(--accent-text);font-size:12px;cursor:pointer;font-weight:500;}.ai-action-btn:hover{background:var(--accent-bg);}
 </style>
 </head>
 <body>
@@ -152,6 +153,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
     <button class="nav-tab" onclick="showPage('appts')">预约</button>
     <button class="nav-tab" onclick="showPage('all-tasks')">任务</button>
     <button class="nav-tab" onclick="showPage('members')">成员</button>
+    <button class="nav-tab" onclick="showPage('ai')">🤖 AI</button>
   </div>
   <div class="nav-right">
     <button class="sync-btn" id="sync-btn" onclick="syncToDrive()">
@@ -224,6 +226,34 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <button class="ftab" onclick="filterTasks('done',this)">已完成</button>
     </div>
     <div class="card"><div id="all-task-list"><div class="empty">暂无任务</div></div></div>
+  </div>
+
+
+  <!-- AI 助手 -->
+  <div class="page" id="page-ai">
+    <div class="sec-header">
+      <div><div class="sec-title">AI 秘书</div><div class="sec-sub">分析任务、安排日程、直接操作数据</div></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-sm" onclick="openApiKeyModal()">🔑 API Key</button>
+        <button class="btn btn-sm" onclick="clearAIChat()">清空对话</button>
+      </div>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden;">
+      <div id="ai-messages" style="min-height:300px;max-height:55vh;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+        <div class="ai-msg ai-msg-system"><div class="ai-msg-bubble">👋 你好！我是你的家庭AI秘书。点击「生成今日简报」开始，或直接告诉我你想做什么。</div></div>
+      </div>
+      <div style="border-top:0.5px solid var(--border);padding:10px 12px;">
+        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+          <button class="btn btn-sm btn-primary" onclick="aiQuickAction('briefing')">📋 生成今日简报</button>
+          <button class="btn btn-sm" onclick="aiQuickAction('schedule')">📅 帮我安排任务</button>
+          <button class="btn btn-sm" onclick="aiQuickAction('urgent')">🔴 最紧急的事</button>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <input type="text" id="ai-input" placeholder="输入你的指令…" style="flex:1;font-size:14px;padding:0 10px;height:38px;border:0.5px solid var(--border2);border-radius:var(--radius);background:var(--bg);color:var(--text);outline:none;" onkeydown="if(event.key==='Enter')sendAIMessage()" />
+          <button class="btn btn-primary" onclick="sendAIMessage()" id="ai-send-btn">发送</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- 成员 -->
@@ -787,6 +817,235 @@ document.addEventListener('DOMContentLoaded',()=>{
   const qi=document.getElementById('quick-input');
   if(qi) qi.addEventListener('keydown',e=>{if(e.key==='Enter')quickAdd();});
 });
+
+// ── AI 秘书 ───────────────────────────────────────
+function getApiKey(){return localStorage.getItem('anthropic_api_key')||'';}
+function setApiKey(k){localStorage.setItem('anthropic_api_key',k);}
+let aiHistory = [];
+
+function buildSystemPrompt() {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  const days = ['周日','周一','周二','周三','周四','周五','周六'];
+  const todayLabel = `${today.getMonth()+1}月${today.getDate()}日 ${days[today.getDay()]}`;
+
+  const tasks = (appState.tasks||[]).filter(t=>!t.done);
+  const upcoming = (appState.appts||[]).filter(a=>{
+    const d=new Date(a.date+'T12:00:00'); d.setHours(0,0,0,0);
+    const diff=(d-today)/(1000*60*60*24);
+    return diff>=0&&diff<=14;
+  }).sort((a,b)=>a.date.localeCompare(b.date));
+
+  let sys = `你是Jin的私人家庭AI秘书，今天是${todayLabel}（${todayStr}）。你了解家庭的所有任务和预约，能直接操作数据。
+
+【当前未完成任务】
+`;
+  if(tasks.length===0){sys+='（暂无任务）\n';}
+  else{tasks.forEach(t=>{
+    const who=Array.isArray(t.who)?t.who.join('、'):(t.who||'未分配');
+    const pri=t.pri==='high'?'🔴紧急':t.pri==='med'?'🟡普通':'🟢不急';
+    sys+=`- ID:${t.id} ${pri}【${t.title}】截止:${t.due||'未设定'} 负责:${who}${t.note&&t.note!=='无'?' 备注:'+t.note:''}\n`;
+  });}
+
+  sys+='\n【未来14天预约】\n';
+  if(upcoming.length===0){sys+='（无）\n';}
+  else{upcoming.forEach(a=>{
+    const who=Array.isArray(a.who)?a.who.join('、'):(a.who||'');
+    sys+=`- ID:${a.id} [${a.date}]${a.time?' '+a.time:''} 【${a.title}】参与:${who}${a.note?' 地点:'+a.note:''}\n`;
+  });}
+
+  sys+=`
+【你的能力】
+你可以直接修改用户的数据。当用户要求操作时，在回复末尾加上一个JSON操作块，格式如下（放在 <ACTION> 和 </ACTION> 标签之间）：
+
+添加任务：{"op":"addTask","title":"任务名","pri":"high/med/low","due":"2026-06-10","who":["Jin"],"note":"备注"}
+修改任务：{"op":"updateTask","id":"任务ID","changes":{"due":"新日期","pri":"high","note":"新备注"}}
+完成任务：{"op":"doneTask","id":"任务ID"}
+删除任务：{"op":"deleteTask","id":"任务ID"}
+添加预约：{"op":"addAppt","title":"标题","date":"2026-06-10","time":"14:00","cat":"医疗","who":["Jin"],"note":"备注"}
+修改预约：{"op":"updateAppt","id":"预约ID","changes":{"date":"新日期","time":"新时间"}}
+删除预约：{"op":"deleteAppt","id":"预约ID"}
+
+多个操作用数组：[{"op":"addTask",...},{"op":"doneTask",...}]
+
+【重要规则】
+- 用中文回复，语气专业友好
+- 回复简洁，重点突出，不要废话
+- 操作前先说明你要做什么，操作后告诉用户完成了
+- 如果用户说"按你的建议来"，直接执行你之前建议的操作
+- 不确定时先问清楚再操作`;
+
+  return sys;
+}
+
+async function callClaude(userMessage) {
+  aiHistory.push({role:'user', content: userMessage});
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key': getApiKey(),
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify({
+      model:'claude-haiku-4-5-20251001',
+      max_tokens:1024,
+      system: buildSystemPrompt(),
+      messages: aiHistory
+    })
+  });
+
+  const data = await response.json();
+  if(!data.content||!data.content[0]) throw new Error(JSON.stringify(data));
+  const text = data.content[0].text;
+  aiHistory.push({role:'assistant', content: text});
+  return text;
+}
+
+function parseAndExecuteActions(text) {
+  const match = text.match(/<ACTION>([\s\S]*?)<\/ACTION>/);
+  if(!match) return text;
+
+  let actions;
+  try { actions = JSON.parse(match[1].trim()); }
+  catch(e) { return text; }
+
+  if(!Array.isArray(actions)) actions = [actions];
+
+  actions.forEach(action => {
+    try {
+      if(action.op==='addTask') {
+        appState.tasks.push({id:uid(), title:action.title, pri:action.pri||'med', who:action.who||[], due:action.due||'', note:action.note||'', done:false, created:new Date().toISOString()});
+      } else if(action.op==='updateTask') {
+        const t=appState.tasks.find(t=>t.id===action.id);
+        if(t) Object.assign(t, action.changes);
+      } else if(action.op==='doneTask') {
+        const t=appState.tasks.find(t=>t.id===action.id);
+        if(t) t.done=true;
+      } else if(action.op==='deleteTask') {
+        appState.tasks=appState.tasks.filter(t=>t.id!==action.id);
+      } else if(action.op==='addAppt') {
+        appState.appts.push({id:uid(), title:action.title, date:action.date, time:action.time||'', cat:action.cat||'其他', who:action.who||[], note:action.note||'', created:new Date().toISOString()});
+      } else if(action.op==='updateAppt') {
+        const a=appState.appts.find(a=>a.id===action.id);
+        if(a) Object.assign(a, action.changes);
+      } else if(action.op==='deleteAppt') {
+        appState.appts=appState.appts.filter(a=>a.id!==action.id);
+      }
+    } catch(e) { console.error('Action error:', e); }
+  });
+
+  saveAndSync();
+  render();
+  return text.replace(/<ACTION>[\s\S]*?<\/ACTION>/, '').trim();
+}
+
+function renderAIMessage(role, text) {
+  const container = document.getElementById('ai-messages');
+  const div = document.createElement('div');
+  div.className = `ai-msg ai-msg-${role}`;
+
+  // Convert simple markdown-like to HTML
+  let html = text
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .replace(/^#{1,3} (.+)$/gm,'<h4>$1</h4>')
+    .replace(/^[-•] (.+)$/gm,'<li>$1</li>')
+    .replace(/(<li>.*<\/li>)/s,'<ul>$1</ul>')
+    .replace(/\n\n/g,'<br><br>')
+    .replace(/\n/g,'<br>');
+
+  div.innerHTML = `<div class="ai-msg-bubble">${html}</div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+function addThinkingIndicator() {
+  const container = document.getElementById('ai-messages');
+  const div = document.createElement('div');
+  div.className = 'ai-msg ai-msg-ai';
+  div.id = 'ai-thinking';
+  div.innerHTML = '<div class="ai-msg-bubble ai-thinking">AI 正在思考…</div>';
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+}
+
+async function sendAIMessage() {
+  if(!getApiKey()) {
+    openApiKeyModal();
+    renderAIMessage('ai','⚠️ 请先设置 Anthropic API Key 才能使用 AI 功能。');
+    return;
+  }
+  const input = document.getElementById('ai-input');
+  const msg = input.value.trim();
+  if(!msg) return;
+
+  input.value = '';
+  document.getElementById('ai-send-btn').disabled = true;
+
+  renderAIMessage('user', msg);
+  addThinkingIndicator();
+
+  try {
+    const reply = await callClaude(msg);
+    document.getElementById('ai-thinking')?.remove();
+    const cleaned = parseAndExecuteActions(reply);
+    renderAIMessage('ai', cleaned);
+  } catch(e) {
+    document.getElementById('ai-thinking')?.remove();
+    renderAIMessage('ai', '⚠️ 出错了：' + e.message);
+  }
+
+  document.getElementById('ai-send-btn').disabled = false;
+  input.focus();
+}
+
+async function aiQuickAction(type) {
+  let msg = '';
+  if(type==='briefing') msg = '请给我生成今日工作简报，分析所有任务的优先级，并给出今天具体应该做哪些事。';
+  else if(type==='schedule') msg = '请根据截止日期和优先级，帮我把所有未完成任务合理安排到未来几天，给出一个每天的行动计划。';
+  else if(type==='urgent') msg = '现在最紧急的3件事是什么？请直接告诉我，并给出每件事今天可以采取的第一步行动。';
+
+  document.getElementById('ai-input').value = msg;
+  await sendAIMessage();
+}
+
+
+function saveApiKey() {
+  const k = document.getElementById('apikey-input').value.trim();
+  if(!k.startsWith('sk-ant-')) { alert('Key 格式不对，应该以 sk-ant- 开头'); return; }
+  setApiKey(k);
+  document.getElementById('apikey-modal').classList.remove('open');
+  renderAIMessage('ai', '✅ API Key 已保存！现在可以开始对话了。');
+}
+
+function openApiKeyModal() {
+  document.getElementById('apikey-input').value = getApiKey();
+  document.getElementById('apikey-modal').classList.add('open');
+}
+
+function clearAIChat() {
+  aiHistory = [];
+  const container = document.getElementById('ai-messages');
+  container.innerHTML = '<div class="ai-msg ai-msg-system"><div class="ai-msg-bubble">对话已清空。点击下方按钮或直接输入指令开始。</div></div>';
+}
 </script>
+
+<!-- API Key 设置 Modal -->
+<div class="modal-wrap" id="apikey-modal">
+  <div class="modal">
+    <div class="modal-title">🔑 设置 Anthropic API Key</div>
+    <p style="font-size:13px;color:var(--text2);margin-bottom:14px;line-height:1.6;">API Key 只保存在你的浏览器里，不会上传到任何服务器。每台设备只需设置一次。</p>
+    <div class="form-row">
+      <input type="password" id="apikey-input" placeholder="sk-ant-api03-..." style="flex-basis:100%;font-family:monospace;font-size:12px;" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('apikey-modal').classList.remove('open')">取消</button>
+      <button class="btn btn-primary" onclick="saveApiKey()">保存</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
