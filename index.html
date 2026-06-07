@@ -836,7 +836,7 @@ function buildSystemPrompt() {
   const tasks = (appState.tasks||[]).filter(t=>!t.done);
   const upcoming = (appState.appts||[]).filter(a=>{
     const end = new Date(today.getTime()+14*24*60*60*1000);
-    const endStr = \`\${end.getFullYear()}-\${String(end.getMonth()+1).padStart(2,'0')}-\${String(end.getDate()).padStart(2,'0')}\`;
+    const endStr = `${end.getFullYear()}-${String(end.getMonth()+1).padStart(2,'0')}-${String(end.getDate()).padStart(2,'0')}`;
     return a.date >= todayStr && a.date <= endStr;
   }).sort((a,b)=>a.date.localeCompare(b.date));
 
