@@ -980,9 +980,8 @@ function renderAIMessage(role, text) {
     .replace(/\n/g,'<br>');
 
   const msgId = 'ai-msg-' + Date.now();
-  div.innerHTML = `<div class="ai-msg-bubble" id="${msgId}">${html}</div>
-    <button onclick="pinToToday('${msgId}')" style="margin-top:4px;font-size:11px;color:var(--accent-text);background:none;border:none;cursor:pointer;padding:2px 4px;opacity:0.7;" title="固定到今日首页">📌 固定到今日</button>`;
-  if(role !== 'ai') div.querySelector('button').style.display = 'none';
+  const pinBtn = role === 'ai' ? `<button onclick="pinToToday('${msgId}')" style="margin-top:6px;font-size:12px;color:var(--accent-text);background:var(--accent-bg);border:1px solid var(--accent);border-radius:6px;cursor:pointer;padding:4px 10px;font-weight:500;">📌 固定到今日首页</button>` : '';
+  div.innerHTML = `<div class="ai-msg-bubble" id="${msgId}">${html}</div>${pinBtn}`;
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
   return div;
