@@ -172,6 +172,13 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
   <!-- 今日 -->
   <div class="page active" id="page-tasks">
     <div class="today-label" id="today-label"></div>
+    <div id="ai-schedule-card" style="display:none;background:var(--surface);border:0.5px solid var(--accent);border-radius:var(--radius-lg);padding:14px 16px;margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:11px;font-weight:500;color:var(--accent-text);text-transform:uppercase;letter-spacing:.06em;">🤖 AI 今日行程</div>
+        <button onclick="clearAISchedule()" style="font-size:11px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 6px;">✕ 清除</button>
+      </div>
+      <div id="ai-schedule-content" style="font-size:13px;color:var(--text);line-height:1.7;"></div>
+    </div>
     <div class="metrics">
       <div class="metric"><div class="metric-n" id="m-today">0</div><div class="metric-l">今日待办</div></div>
       <div class="metric"><div class="metric-n" id="m-appt">0</div><div class="metric-l">本周预约</div></div>
@@ -420,6 +427,7 @@ async function onSignedIn() {
   // Load data from Drive
   await loadFromDrive();
   render();
+  showAISchedule();
 }
 
 // ── Google Drive ──────────────────────────────────
@@ -971,7 +979,10 @@ function renderAIMessage(role, text) {
     .replace(/\n\n/g,'<br>')
     .replace(/\n/g,'<br>');
 
-  div.innerHTML = `<div class="ai-msg-bubble">${html}</div>`;
+  const msgId = 'ai-msg-' + Date.now();
+  div.innerHTML = `<div class="ai-msg-bubble" id="${msgId}">${html}</div>
+    <button onclick="pinToToday('${msgId}')" style="margin-top:4px;font-size:11px;color:var(--accent-text);background:none;border:none;cursor:pointer;padding:2px 4px;opacity:0.7;" title="固定到今日首页">📌 固定到今日</button>`;
+  if(role !== 'ai') div.querySelector('button').style.display = 'none';
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
   return div;
@@ -1039,6 +1050,39 @@ function saveApiKey() {
 function openApiKeyModal() {
   document.getElementById('apikey-input').value = getApiKey();
   document.getElementById('apikey-modal').classList.add('open');
+}
+
+function pinToToday(msgId) {
+  const el = document.getElementById(msgId);
+  if(!el) return;
+  const html = el.innerHTML;
+  localStorage.setItem('ai_schedule_html', html);
+  localStorage.setItem('ai_schedule_date', new Date().toISOString().slice(0,10));
+  showAISchedule();
+  // Visual feedback
+  const btn = el.parentElement.querySelector('button');
+  if(btn) { btn.textContent = '✅ 已固定到今日！'; setTimeout(()=>{ btn.textContent = '📌 固定到今日'; }, 2000); }
+}
+
+function showAISchedule() {
+  const html = localStorage.getItem('ai_schedule_html');
+  const date = localStorage.getItem('ai_schedule_date');
+  const today = new Date().toISOString().slice(0,10);
+  const card = document.getElementById('ai-schedule-card');
+  const content = document.getElementById('ai-schedule-content');
+  if(html && date === today && card && content) {
+    content.innerHTML = html;
+    card.style.display = 'block';
+  } else if(card) {
+    card.style.display = 'none';
+  }
+}
+
+function clearAISchedule() {
+  localStorage.removeItem('ai_schedule_html');
+  localStorage.removeItem('ai_schedule_date');
+  const card = document.getElementById('ai-schedule-card');
+  if(card) card.style.display = 'none';
 }
 
 function clearAIChat() {
