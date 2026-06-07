@@ -359,7 +359,23 @@ let selectedMember = null;
 const pickerSel = {};
 
 // ── Google Sign-In ────────────────────────────────
-function triggerGoogleLogin() { signIn(); }
+function triggerGoogleLogin() {
+  try {
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPES,
+      callback: (tokenResponse) => {
+        if(tokenResponse.error) { console.error(tokenResponse); return; }
+        accessToken = tokenResponse.access_token;
+        sessionStorage.setItem("fa_token", accessToken);
+        onSignedIn();
+      }
+    });
+    tokenClient.requestAccessToken({ prompt: "consent" });
+  } catch(e) {
+    alert("请在浏览器中打开此页面，不支持在 App 内置浏览器登录。");
+  }
+}
 
 window.addEventListener('load', function() {
   // Check saved token first
