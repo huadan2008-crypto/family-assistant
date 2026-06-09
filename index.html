@@ -158,6 +158,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
     <button class="nav-tab" onclick="showPage('all-tasks')">任务</button>
     <button class="nav-tab" onclick="showPage('members')">成员</button>
     <button class="nav-tab" onclick="showPage('ai')">🤖 AI</button>
+    <button class="nav-tab" onclick="showPage('finance')">💰 财务</button>
   </div>
   <div class="nav-right">
     <button class="sync-btn" id="sync-btn" onclick="syncToDrive()">
@@ -267,6 +268,55 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
     </div>
   </div>
 
+  <!-- 财务 -->
+  <div class="page" id="page-finance">
+    <div class="sec-header">
+      <div><div class="sec-title">家庭财务</div><div class="sec-sub">收据拍照自动记账，分类统计，趋势分析</div></div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <label class="btn btn-primary" style="cursor:pointer;">
+        📷 拍照/上传收据
+        <input type="file" id="receipt-input" accept="image/*" style="display:none;" onchange="handleReceiptUpload(event)" />
+      </label>
+      <button class="btn" onclick="openBillModal()">✏️ 手动记一笔</button>
+    </div>
+
+    <div id="receipt-processing" style="display:none;background:var(--accent-bg);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--accent-text);">
+      🤖 AI 正在识别收据内容…
+    </div>
+
+    <!-- 本月统计 -->
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;" id="fin-month-label">本月支出</div>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-sm" onclick="finChangeMonth(-1)">←</button>
+          <button class="btn btn-sm" onclick="finChangeMonth(1)">→</button>
+        </div>
+      </div>
+      <div style="font-size:28px;font-weight:700;color:var(--text);margin-bottom:12px;" id="fin-month-total">$0.00</div>
+      <div id="fin-cat-breakdown"></div>
+    </div>
+
+    <!-- 趋势图 -->
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;">📈 支出趋势（近6个月）</div>
+        <select id="fin-trend-cat" onchange="renderFinance()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
+          <option value="__all__">全部分类</option>
+        </select>
+      </div>
+      <div id="fin-trend-chart"></div>
+    </div>
+
+    <!-- 账单列表 -->
+    <div class="card">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">本月账单明细</div>
+      <div id="fin-bill-list"></div>
+    </div>
+  </div>
+
   <!-- 成员 -->
   <div class="page" id="page-members">
     <div class="sec-header">
@@ -359,7 +409,7 @@ const MEMBERS=[
 // ── State ─────────────────────────────────────────
 let accessToken = null;
 let driveFileId = null;
-let appState = { tasks:[], appts:[], memberNotes:{} };
+let appState = { tasks:[], appts:[], memberNotes:{}, bills:[] };
 let currentFilter = 'all';
 let selectedMember = null;
 const pickerSel = {};
@@ -480,6 +530,7 @@ async function loadFromDrive() {
       if(text && text.trim().startsWith('{')) {
         const data = JSON.parse(text);
         if(data.tasks !== undefined) appState = data;
+        if(!appState.bills) appState.bills = [];
       }
     }
     setSyncStatus('ok');
@@ -572,9 +623,10 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const idx={tasks:0,appts:1,'all-tasks':2,members:3,ai:4};
+  const idx={tasks:0,appts:1,'all-tasks':2,members:3,ai:4,finance:5};
   if(idx[id]!==undefined) document.querySelectorAll('.nav-tab')[idx[id]].classList.add('active');
   render();
+  if(id==='finance') renderFinance();
 }
 
 // ── Render ────────────────────────────────────────
@@ -820,6 +872,277 @@ function saveMemberNote(memberId) {
   if(el){appState.memberNotes[memberId]=el.value; syncToDrive();}
 }
 
+// ── 财务模块 ──────────────────────────────────────
+const FIN_CATS = ['食品杂货','餐饮','水电气','网络通讯','房贷/房租','保险','汽车/交通','教育','医疗','购物','娱乐','其他'];
+const FIN_CAT_COLORS = {'食品杂货':'#0F6E56','餐饮':'#BA7517','水电气':'#185FA5','网络通讯':'#534AB7','房贷/房租':'#993C1D','保险':'#854F0B','汽车/交通':'#D4537E','教育':'#639922','医疗':'#C2410C','购物':'#7C3AED','娱乐':'#0891B2','其他':'#6B7280'};
+let finViewMonth = null; // 'YYYY-MM' being viewed
+
+function finCurrentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function finChangeMonth(delta) {
+  const [y,m] = (finViewMonth||finCurrentMonth()).split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  finViewMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  renderFinance();
+}
+
+function renderFinance() {
+  const page = document.getElementById('page-finance');
+  if(!page || !page.classList.contains('active')) return;
+  const bills = appState.bills || [];
+  const month = finViewMonth || finCurrentMonth();
+  const [y,m] = month.split('-');
+
+  // Month label
+  document.getElementById('fin-month-label').textContent = `${y}年${Number(m)}月支出`;
+
+  const monthBills = bills.filter(b => (b.date||'').startsWith(month));
+  const total = monthBills.reduce((s,b)=>s+Number(b.amount||0),0);
+  document.getElementById('fin-month-total').textContent = '$' + total.toFixed(2);
+
+  // Category breakdown with bars
+  const byCat = {};
+  monthBills.forEach(b => { byCat[b.cat] = (byCat[b.cat]||0) + Number(b.amount||0); });
+  const sorted = Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+  const maxV = sorted.length ? sorted[0][1] : 1;
+  document.getElementById('fin-cat-breakdown').innerHTML = sorted.length === 0
+    ? '<div style="font-size:13px;color:var(--text3);">本月还没有账单</div>'
+    : sorted.map(([cat,v]) => {
+        const c = FIN_CAT_COLORS[cat]||'#6B7280';
+        const pct = total>0 ? (v/total*100).toFixed(0) : 0;
+        return `<div style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
+            <span style="color:var(--text);">${cat}</span>
+            <span style="color:var(--text2);">$${v.toFixed(2)} · ${pct}%</span>
+          </div>
+          <div style="background:var(--surface2);border-radius:4px;height:8px;overflow:hidden;">
+            <div style="width:${(v/maxV*100).toFixed(1)}%;height:100%;background:${c};border-radius:4px;"></div>
+          </div>
+        </div>`;
+      }).join('');
+
+  // Trend cat selector — populate once
+  const sel = document.getElementById('fin-trend-cat');
+  if(sel.options.length === 1) {
+    FIN_CATS.forEach(c => { const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+  }
+
+  // Trend chart: last 6 months ending at viewed month
+  const selCat = sel.value;
+  const months = [];
+  for(let i=5;i>=0;i--) {
+    const d = new Date(Number(y), Number(m)-1-i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  const vals = months.map(mo => bills
+    .filter(b => (b.date||'').startsWith(mo) && (selCat==='__all__' || b.cat===selCat))
+    .reduce((s,b)=>s+Number(b.amount||0),0));
+  const maxBar = Math.max(...vals, 1);
+  const barColor = selCat==='__all__' ? 'var(--accent)' : (FIN_CAT_COLORS[selCat]||'var(--accent)');
+
+  document.getElementById('fin-trend-chart').innerHTML = `
+    <div style="display:flex;align-items:flex-end;gap:8px;height:140px;padding-top:10px;">
+      ${months.map((mo,i)=>{
+        const h = Math.max((vals[i]/maxBar*100), 2);
+        const lbl = Number(mo.split('-')[1]) + '月';
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end;">
+          <div style="font-size:10px;color:var(--text2);">${vals[i]>0?'$'+(vals[i]>=1000?(vals[i]/1000).toFixed(1)+'k':vals[i].toFixed(0)):''}</div>
+          <div style="width:100%;max-width:40px;height:${h}%;background:${barColor};border-radius:4px 4px 0 0;opacity:${mo===month?1:0.55};"></div>
+          <div style="font-size:10px;color:var(--text3);">${lbl}</div>
+        </div>`;
+      }).join('')}
+    </div>`;
+
+  // Bill list
+  const listEl = document.getElementById('fin-bill-list');
+  const sortedBills = [...monthBills].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  listEl.innerHTML = sortedBills.length === 0
+    ? '<div style="font-size:13px;color:var(--text3);">点上方按钮添加第一笔账单</div>'
+    : sortedBills.map(b => {
+        const c = FIN_CAT_COLORS[b.cat]||'#6B7280';
+        const whoName = b.who || '';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);">
+          <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;color:var(--text);">${b.note||b.cat}</div>
+            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.receiptId?' · 📎有收据':''}</div>
+          </div>
+          <div style="font-size:15px;font-weight:600;color:var(--text);">$${Number(b.amount).toFixed(2)}</div>
+          <button onclick="editBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">✏️</button>
+          <button onclick="deleteBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">🗑</button>
+        </div>`;
+      }).join('');
+}
+
+function openBillModal(prefill) {
+  const whoSel = document.getElementById('b-who');
+  whoSel.innerHTML = MEMBERS.map(mm=>`<option value="${mm.name}">${mm.name}</option>`).join('');
+  document.getElementById('bill-modal-title').textContent = prefill && prefill.id ? '编辑账单' : '记一笔支出';
+  document.getElementById('b-amount').value = prefill?.amount ?? '';
+  document.getElementById('b-date').value = prefill?.date ?? new Date().toLocaleDateString('en-CA');
+  document.getElementById('b-cat').value = prefill?.cat && FIN_CATS.includes(prefill.cat) ? prefill.cat : '其他';
+  document.getElementById('b-note').value = prefill?.note ?? '';
+  if(prefill?.who) whoSel.value = prefill.who;
+  document.getElementById('b-edit-id').value = prefill?.id ?? '';
+  document.getElementById('b-receipt-id').value = prefill?.receiptId ?? '';
+  document.getElementById('bill-modal').classList.add('open');
+}
+
+function saveBill() {
+  const amount = parseFloat(document.getElementById('b-amount').value);
+  if(!amount || amount <= 0) { alert('请输入金额'); return; }
+  const editId = document.getElementById('b-edit-id').value;
+  const bill = {
+    amount: amount,
+    date: document.getElementById('b-date').value || new Date().toLocaleDateString('en-CA'),
+    cat: document.getElementById('b-cat').value,
+    who: document.getElementById('b-who').value,
+    note: document.getElementById('b-note').value.trim(),
+    receiptId: document.getElementById('b-receipt-id').value || ''
+  };
+  if(!appState.bills) appState.bills = [];
+  if(editId) {
+    const ex = appState.bills.find(b=>b.id===editId);
+    if(ex) Object.assign(ex, bill);
+  } else {
+    bill.id = uid();
+    bill.created = new Date().toISOString();
+    appState.bills.push(bill);
+  }
+  document.getElementById('bill-modal').classList.remove('open');
+  saveAndSync();
+  renderFinance();
+}
+
+function editBill(id) {
+  const b = (appState.bills||[]).find(b=>b.id===id);
+  if(b) openBillModal(b);
+}
+
+function deleteBill(id) {
+  if(!confirm('确定删除这笔账单吗？')) return;
+  appState.bills = (appState.bills||[]).filter(b=>b.id!==id);
+  saveAndSync();
+  renderFinance();
+}
+
+// ── 收据上传 + AI 识别 ────────────────────────────
+let receiptFolderId = null;
+
+async function findOrCreateReceiptFolder(yearMonth) {
+  // Root folder 收据归档
+  if(!receiptFolderId) {
+    const q = encodeURIComponent("name='收据归档' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`);
+    const data = await res.json();
+    if(data.files && data.files.length) { receiptFolderId = data.files[0].id; }
+    else {
+      const cr = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name:'收据归档', mimeType:'application/vnd.google-apps.folder'})
+      });
+      receiptFolderId = (await cr.json()).id;
+    }
+  }
+  // Subfolder YYYY-MM
+  const q2 = encodeURIComponent(`name='${yearMonth}' and mimeType='application/vnd.google-apps.folder' and '${receiptFolderId}' in parents and trashed=false`);
+  const res2 = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${q2}&fields=files(id)`);
+  const data2 = await res2.json();
+  if(data2.files && data2.files.length) return data2.files[0].id;
+  const cr2 = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name:yearMonth, mimeType:'application/vnd.google-apps.folder', parents:[receiptFolderId]})
+  });
+  return (await cr2.json()).id;
+}
+
+async function uploadReceiptToDrive(base64Data, mimeType, yearMonth) {
+  const folderId = await findOrCreateReceiptFolder(yearMonth);
+  const fileName = `收据_${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}.${mimeType.split('/')[1]==='jpeg'?'jpg':mimeType.split('/')[1]}`;
+  const boundary = '-------fa' + Date.now();
+  const meta = JSON.stringify({name:fileName, parents:[folderId]});
+  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64Data}\r\n--${boundary}--`;
+  const res = await driveRequest('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method:'POST',
+    headers:{'Content-Type':`multipart/related; boundary=${boundary}`},
+    body
+  });
+  return (await res.json()).id;
+}
+
+async function handleReceiptUpload(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if(!file) return;
+  if(!getApiKey()) { openApiKeyModal(); return; }
+
+  const proc = document.getElementById('receipt-processing');
+  proc.style.display = 'block';
+  proc.textContent = '🤖 AI 正在识别收据内容…';
+
+  try {
+    // Read as base64
+    const base64 = await new Promise((res,rej)=>{
+      const r = new FileReader();
+      r.onload = ()=>res(r.result.split(',')[1]);
+      r.onerror = ()=>rej(new Error('读取图片失败'));
+      r.readAsDataURL(file);
+    });
+
+    // Claude vision
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': getApiKey(),
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body: JSON.stringify({
+        model:'claude-haiku-4-5-20251001',
+        max_tokens:300,
+        messages:[{role:'user', content:[
+          {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
+          {type:'text', text:`识别这张收据，返回纯JSON（不要任何其他文字、不要markdown）：
+{"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "cat": "从这些分类中选一个：${FIN_CATS.join('、')}"}
+如果某项看不清就用null。日期看不清就用null。`}
+        ]}]
+      })
+    });
+    const data = await response.json();
+    if(!data.content || !data.content[0]) throw new Error('AI识别失败：' + JSON.stringify(data).slice(0,100));
+    let parsed;
+    try {
+      parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
+    } catch(e) { throw new Error('AI返回格式异常，请手动记账'); }
+
+    // Upload receipt image to Drive
+    proc.textContent = '📤 正在归档收据到 Google Drive…';
+    const billDate = parsed.date || new Date().toLocaleDateString('en-CA');
+    const yearMonth = billDate.slice(0,7);
+    let receiptId = '';
+    try { receiptId = await uploadReceiptToDrive(base64, file.type, yearMonth); }
+    catch(e) { console.error('收据上传失败', e); }
+
+    proc.style.display = 'none';
+
+    // Open modal with prefilled values for confirmation
+    openBillModal({
+      amount: parsed.amount || '',
+      date: billDate,
+      cat: parsed.cat || '其他',
+      note: parsed.merchant || '',
+      receiptId: receiptId
+    });
+  } catch(e) {
+    proc.style.display = 'none';
+    alert('收据识别出错：' + e.message);
+  }
+}
+
 document.querySelectorAll('.modal-wrap').forEach(m=>{
   m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
 });
@@ -873,6 +1196,15 @@ function buildSystemPrompt() {
     sys+=`- ID:${a.id} [${a.date}]${a.time?' '+a.time:''} 【${a.title}】参与:${who}${a.note?' 地点:'+a.note:''}\n`;
   });}
 
+  // 本月财务摘要
+  const curMonth = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
+  const monthBills = (appState.bills||[]).filter(b=>(b.date||'').startsWith(curMonth));
+  const finTotal = monthBills.reduce((s,b)=>s+Number(b.amount||0),0);
+  const finByCat = {};
+  monthBills.forEach(b=>{finByCat[b.cat]=(finByCat[b.cat]||0)+Number(b.amount||0);});
+  sys += `\n【本月支出（${curMonth}）】\n总计 $${finTotal.toFixed(2)}\n`;
+  Object.entries(finByCat).sort((a,b)=>b[1]-a[1]).forEach(([c,v])=>{ sys+=`- ${c}: $${v.toFixed(2)}\n`; });
+
   sys+=`
 【你的能力】
 你可以直接修改用户的数据。当用户要求操作时，在回复末尾加上一个JSON操作块，格式如下（放在 <ACTION> 和 </ACTION> 标签之间）：
@@ -884,6 +1216,8 @@ function buildSystemPrompt() {
 添加预约：{"op":"addAppt","title":"标题","date":"2026-06-10","time":"14:00","cat":"医疗","who":["Jin"],"note":"备注"}
 修改预约：{"op":"updateAppt","id":"预约ID","changes":{"date":"新日期","time":"新时间"}}
 删除预约：{"op":"deleteAppt","id":"预约ID"}
+记一笔支出：{"op":"addBill","amount":85.50,"date":"2026-06-08","cat":"食品杂货","note":"Costco","who":"Jin"}
+删除账单：{"op":"deleteBill","id":"账单ID"}
 
 多个操作用数组：[{"op":"addTask",...},{"op":"doneTask",...}]
 
@@ -953,12 +1287,18 @@ function parseAndExecuteActions(text) {
         if(a) Object.assign(a, action.changes);
       } else if(action.op==='deleteAppt') {
         appState.appts=appState.appts.filter(a=>a.id!==action.id);
+      } else if(action.op==='addBill') {
+        if(!appState.bills) appState.bills=[];
+        appState.bills.push({id:uid(), amount:Number(action.amount)||0, date:action.date||new Date().toLocaleDateString('en-CA'), cat:action.cat||'其他', note:action.note||'', who:action.who||'', receiptId:'', created:new Date().toISOString()});
+      } else if(action.op==='deleteBill') {
+        appState.bills=(appState.bills||[]).filter(b=>b.id!==action.id);
       }
     } catch(e) { console.error('Action error:', e); }
   });
 
   saveAndSync();
   render();
+  renderFinance();
   return text.replace(/<ACTION>[\s\S]*?<\/ACTION>/, '').trim();
 }
 
@@ -1092,6 +1432,43 @@ function clearAIChat() {
 </script>
 
 <!-- API Key 设置 Modal -->
+<!-- 记账 Modal -->
+<div class="modal-wrap" id="bill-modal">
+  <div class="modal">
+    <div class="modal-title" id="bill-modal-title">记一笔支出</div>
+    <div class="form-row">
+      <div style="flex:1"><label class="fl">金额 ($)</label>
+        <input type="number" id="b-amount" placeholder="0.00" step="0.01" min="0" />
+      </div>
+      <div style="flex:1"><label class="fl">日期</label>
+        <input type="date" id="b-date" />
+      </div>
+    </div>
+    <div class="form-row">
+      <div style="flex:1"><label class="fl">分类</label>
+        <select id="b-cat">
+          <option>食品杂货</option><option>餐饮</option><option>水电气</option>
+          <option>网络通讯</option><option>房贷/房租</option><option>保险</option>
+          <option>汽车/交通</option><option>教育</option><option>医疗</option>
+          <option>购物</option><option>娱乐</option><option>其他</option>
+        </select>
+      </div>
+      <div style="flex:1"><label class="fl">记账人</label>
+        <select id="b-who"></select>
+      </div>
+    </div>
+    <div class="form-row"><label class="fl" style="flex-basis:100%">商家/备注</label>
+      <input type="text" id="b-note" placeholder="比如 Costco、Enbridge…" style="flex-basis:100%" />
+    </div>
+    <input type="hidden" id="b-edit-id" />
+    <input type="hidden" id="b-receipt-id" />
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('bill-modal').classList.remove('open')">取消</button>
+      <button class="btn btn-primary" onclick="saveBill()">保存</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-wrap" id="apikey-modal">
   <div class="modal">
     <div class="modal-title">🔑 设置 Anthropic API Key</div>
