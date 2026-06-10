@@ -15,7 +15,7 @@
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
 nav{background:var(--surface);border-bottom:0.5px solid var(--border);height:52px;display:flex;align-items:center;padding:0 14px;position:sticky;top:0;z-index:100;gap:4px;}
 .nav-logo{font-size:16px;font-weight:600;color:var(--text);flex:1;}.nav-logo span{color:var(--accent);}
-.nav-tabs{display:flex;gap:2px;}
+.nav-tabs{display:flex;gap:2px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;min-width:0;}.nav-tabs::-webkit-scrollbar{display:none;}
 .nav-tab{padding:5px 10px;border-radius:8px;font-size:13px;color:var(--text2);cursor:pointer;border:none;background:none;white-space:nowrap;}
 .nav-tab.active{background:var(--accent-bg);color:var(--accent-text);font-weight:500;}
 .nav-tab:hover:not(.active){background:var(--surface2);}
@@ -124,7 +124,8 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
 .sync-status.ok{color:var(--success);}
 .sync-status.err{color:var(--danger);}
 @media(max-width:480px){
-  .nav-tab{padding:5px 7px;font-size:12px;}
+  .nav-tab{padding:5px 6px;font-size:12px;}
+  .nav-logo{font-size:14px;flex:0 0 auto;margin-right:4px;}
   main{padding:12px 10px 50px;}
   .members-grid{grid-template-columns:repeat(3,1fr);}
   .avatar{width:40px;height:40px;font-size:14px;}
@@ -278,6 +279,10 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <label class="btn btn-primary" style="cursor:pointer;">
         📷 拍照/上传收据
         <input type="file" id="receipt-input" accept="image/*" style="display:none;" onchange="handleReceiptUpload(event)" />
+      </label>
+      <label class="btn" style="cursor:pointer;">
+        📄 上传PDF账单
+        <input type="file" id="statement-input" accept="application/pdf" style="display:none;" onchange="handleStatementUpload(event)" />
       </label>
       <button class="btn" onclick="openBillModal()">✏️ 手动记一笔</button>
     </div>
@@ -1143,6 +1148,115 @@ async function handleReceiptUpload(event) {
   }
 }
 
+// ── PDF 账单批量识别 ──────────────────────────────
+let pendingStatementTxns = [];
+
+async function handleStatementUpload(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if(!file) return;
+  if(!getApiKey()) { openApiKeyModal(); return; }
+  if(file.size > 10*1024*1024) { alert('PDF 太大（超过10MB），请拆分后上传'); return; }
+
+  const proc = document.getElementById('receipt-processing');
+  proc.style.display = 'block';
+  proc.textContent = '🤖 AI 正在解析账单，交易较多时可能需要半分钟…';
+
+  try {
+    const base64 = await new Promise((res,rej)=>{
+      const r = new FileReader();
+      r.onload = ()=>res(r.result.split(',')[1]);
+      r.onerror = ()=>rej(new Error('读取PDF失败'));
+      r.readAsDataURL(file);
+    });
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': getApiKey(),
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body: JSON.stringify({
+        model:'claude-sonnet-4-6',
+        max_tokens:4096,
+        messages:[{role:'user', content:[
+          {type:'document', source:{type:'base64', media_type:'application/pdf', data:base64}},
+          {type:'text', text:`这是一份账单/信用卡月结单。提取其中所有消费交易，返回纯JSON数组（不要任何其他文字、不要markdown代码块）：
+[{"date":"YYYY-MM-DD","merchant":"商家名","amount":金额数字,"cat":"分类"}]
+
+规则：
+- 分类必须从这些里选：${FIN_CATS.join('、')}
+- 只提取消费/扣款，跳过还款记录（如 PAYMENT THANK YOU）、退款和利息调整
+- 金额用正数
+- 如果是电话费/网费这类单一账单（不是逐笔交易的月结单），就返回一条记录，金额是本期应付总额`}
+        ]}]
+      })
+    });
+    const data = await response.json();
+    if(!data.content || !data.content[0]) throw new Error('AI解析失败：' + JSON.stringify(data).slice(0,120));
+
+    let txns;
+    try {
+      txns = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
+    } catch(e) { throw new Error('AI返回格式异常，请重试或手动记账'); }
+    if(!Array.isArray(txns) || txns.length===0) throw new Error('没有识别到任何交易');
+
+    proc.style.display = 'none';
+    pendingStatementTxns = txns;
+    renderStatementReview();
+  } catch(e) {
+    proc.style.display = 'none';
+    alert('账单解析出错：' + e.message);
+  }
+}
+
+function renderStatementReview() {
+  const listEl = document.getElementById('statement-list');
+  listEl.innerHTML = pendingStatementTxns.map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);">
+      <input type="checkbox" id="stx-${i}" checked style="flex-shrink:0;width:16px;height:16px;" />
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.merchant||'未知商家'}</div>
+        <div style="font-size:11px;color:var(--text3);">${t.date||'日期未知'}</div>
+      </div>
+      <select id="stx-cat-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:90px;">
+        ${FIN_CATS.map(c=>`<option ${c===t.cat?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <div style="font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;">$${Number(t.amount||0).toFixed(2)}</div>
+    </div>`).join('');
+  const total = pendingStatementTxns.reduce((s,t)=>s+Number(t.amount||0),0);
+  document.getElementById('statement-confirm-btn').textContent = `添加 ${pendingStatementTxns.length} 笔（共 $${total.toFixed(2)}）`;
+  document.getElementById('statement-modal').classList.add('open');
+}
+
+function confirmStatementImport() {
+  if(!appState.bills) appState.bills = [];
+  let added = 0;
+  pendingStatementTxns.forEach((t,i)=>{
+    const cb = document.getElementById('stx-'+i);
+    if(!cb || !cb.checked) return;
+    const catSel = document.getElementById('stx-cat-'+i);
+    appState.bills.push({
+      id: uid(),
+      amount: Number(t.amount)||0,
+      date: t.date || new Date().toLocaleDateString('en-CA'),
+      cat: catSel ? catSel.value : (t.cat||'其他'),
+      note: t.merchant || '',
+      who: 'Jin',
+      receiptId: '',
+      created: new Date().toISOString()
+    });
+    added++;
+  });
+  pendingStatementTxns = [];
+  document.getElementById('statement-modal').classList.remove('open');
+  saveAndSync();
+  renderFinance();
+  alert(`✅ 已添加 ${added} 笔账单`);
+}
+
 document.querySelectorAll('.modal-wrap').forEach(m=>{
   m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
 });
@@ -1432,6 +1546,19 @@ function clearAIChat() {
 </script>
 
 <!-- API Key 设置 Modal -->
+<!-- PDF账单审核 Modal -->
+<div class="modal-wrap" id="statement-modal">
+  <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="modal-title">📄 账单识别结果</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">请核对以下交易，取消勾选不需要的，确认后批量记账。</p>
+    <div id="statement-list" style="flex:1;overflow-y:auto;min-height:100px;max-height:50vh;"></div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn" onclick="document.getElementById('statement-modal').classList.remove('open')">取消</button>
+      <button class="btn btn-primary" id="statement-confirm-btn" onclick="confirmStatementImport()">添加选中交易</button>
+    </div>
+  </div>
+</div>
+
 <!-- 记账 Modal -->
 <div class="modal-wrap" id="bill-modal">
   <div class="modal">
