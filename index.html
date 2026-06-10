@@ -133,6 +133,16 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
   .mp-all .av{width:32px;height:32px;}
 }
 .ai-msg{display:flex;flex-direction:column;gap:2px;}.ai-msg-user{align-items:flex-end;}.ai-msg-system,.ai-msg-ai{align-items:flex-start;}.ai-msg-bubble{max-width:85%;padding:10px 13px;border-radius:14px;font-size:13px;line-height:1.6;}.ai-msg-user .ai-msg-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px;}.ai-msg-ai .ai-msg-bubble,.ai-msg-system .ai-msg-bubble{background:var(--surface2);color:var(--text);border-bottom-left-radius:4px;}.ai-msg-ai .ai-msg-bubble h4{font-size:13px;font-weight:600;margin:8px 0 4px;color:var(--accent-text);}.ai-msg-ai .ai-msg-bubble ul{padding-left:16px;margin:4px 0;}.ai-msg-ai .ai-msg-bubble li{margin:3px 0;}.ai-thinking{opacity:0.6;font-style:italic;}.ai-action-bar{background:var(--accent-bg);border-radius:10px;padding:10px 12px;margin-top:6px;font-size:12px;color:var(--accent-text);}.ai-action-btn{display:inline-block;margin:4px 4px 0 0;padding:4px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--surface);color:var(--accent-text);font-size:12px;cursor:pointer;font-weight:500;}.ai-action-btn:hover{background:var(--accent-bg);}
+.module-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:22px 18px;cursor:pointer;text-align:center;transition:transform .12s,box-shadow .12s;position:relative;}
+.module-card:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,0.08);}
+.module-card .mc-icon{font-size:34px;margin-bottom:8px;}
+.module-card .mc-title{font-size:16px;font-weight:600;color:var(--text);}
+.module-card .mc-sub{font-size:11px;color:var(--text3);margin-top:4px;}
+.module-card .mc-badge{position:absolute;top:10px;right:12px;font-size:11px;color:var(--accent-text);background:var(--accent-bg);border-radius:10px;padding:1px 8px;font-weight:600;}
+.module-card .mc-badge:empty{display:none;}
+.module-card-soon{opacity:0.55;}
+.nav-home{flex:0 0 auto;background:none;border:0.5px solid var(--border2);border-radius:8px;padding:4px 9px;font-size:14px;cursor:pointer;margin-right:2px;}
+.nav-home:hover{background:var(--surface2);}
 </style>
 </head>
 <body>
@@ -151,15 +161,46 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
 
 <!-- Main app (hidden until authenticated) -->
 <div id="app" style="display:none">
+<!-- 模块首页 -->
+<div id="module-home" style="display:none;">
+  <div style="max-width:680px;margin:0 auto;padding:36px 16px 60px;">
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:40px;">🏠</div>
+      <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
+      <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
+      <div class="module-card" onclick="enterModule('schedule')">
+        <div class="mc-icon">📅</div><div class="mc-title">日程</div>
+        <div class="mc-sub">任务 · 预约 · AI秘书</div>
+        <div class="mc-badge" id="mc-badge-schedule"></div>
+      </div>
+      <div class="module-card" onclick="enterModule('finance')">
+        <div class="mc-icon">💰</div><div class="mc-title">财务</div>
+        <div class="mc-sub">记账 · 统计 · 收据归档</div>
+        <div class="mc-badge" id="mc-badge-finance"></div>
+      </div>
+      <div class="module-card module-card-soon" onclick="enterModule('health')">
+        <div class="mc-icon">🏥</div><div class="mc-title">健康</div>
+        <div class="mc-sub">即将推出</div>
+      </div>
+      <div class="module-card module-card-soon" onclick="enterModule('docs')">
+        <div class="mc-icon">📁</div><div class="mc-title">文档</div>
+        <div class="mc-sub">即将推出</div>
+      </div>
+    </div>
+  </div>
+</div>
 <nav>
   <div class="nav-logo">家庭<span>助手</span></div>
   <div class="nav-tabs">
-    <button class="nav-tab active" onclick="showPage('tasks')">今日</button>
-    <button class="nav-tab" onclick="showPage('appts')">预约</button>
-    <button class="nav-tab" onclick="showPage('all-tasks')">任务</button>
-    <button class="nav-tab" onclick="showPage('members')">成员</button>
-    <button class="nav-tab" onclick="showPage('ai')">🤖 AI</button>
-    <button class="nav-tab" onclick="showPage('finance')">💰 财务</button>
+    <button class="nav-home" onclick="goHome()" title="返回模块首页">🏠</button>
+    <button class="nav-tab active" data-page="tasks" onclick="showPage('tasks')">今日</button>
+    <button class="nav-tab" data-page="appts" onclick="showPage('appts')">预约</button>
+    <button class="nav-tab" data-page="all-tasks" onclick="showPage('all-tasks')">任务</button>
+    <button class="nav-tab" data-page="members" onclick="showPage('members')">成员</button>
+    <button class="nav-tab" data-page="ai" onclick="showPage('ai')">🤖 AI</button>
+    <button class="nav-tab" data-page="finance" onclick="showPage('finance')">💰 财务</button>
   </div>
   <div class="nav-right">
     <button class="sync-btn" id="sync-btn" onclick="syncToDrive()">
@@ -285,6 +326,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
         <input type="file" id="statement-input" accept="application/pdf" style="display:none;" onchange="handleStatementUpload(event)" />
       </label>
       <button class="btn" onclick="openBillModal()">✏️ 手动记一笔</button>
+      <button class="btn" onclick="openLedgerBatch()">🏷 批量设置账本</button>
     </div>
 
     <div id="receipt-processing" style="display:none;background:var(--accent-bg);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--accent-text);">
@@ -322,6 +364,22 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
     </div>
   </div>
 
+  <!-- 健康（占位） -->
+  <div class="page" id="page-health">
+    <div style="text-align:center;padding:60px 20px;color:var(--text3);">
+      <div style="font-size:44px;">🏥</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text2);margin-top:10px;">健康模块</div>
+      <div style="font-size:13px;margin-top:6px;">疫苗记录、体检报告、用药提醒——即将推出</div>
+    </div>
+  </div>
+  <!-- 文档（占位） -->
+  <div class="page" id="page-docs">
+    <div style="text-align:center;padding:60px 20px;color:var(--text3);">
+      <div style="font-size:44px;">📁</div>
+      <div style="font-size:16px;font-weight:600;color:var(--text2);margin-top:10px;">文档模块</div>
+      <div style="font-size:13px;margin-top:6px;">护照、保险单、合同归档——即将推出</div>
+    </div>
+  </div>
   <!-- 成员 -->
   <div class="page" id="page-members">
     <div class="sec-header">
@@ -483,6 +541,7 @@ async function onSignedIn() {
   await loadFromDrive();
   render();
   showAISchedule();
+  goHome();
 }
 
 // ── Google Drive ──────────────────────────────────
@@ -622,6 +681,56 @@ function getPickerValue(cid) {
   return (!s||s.size===0)?['全家']:[...s];
 }
 function resetPicker(cid) { pickerSel[cid]=new Set(); buildPicker(cid); }
+
+// ── 模块导航 ──────────────────────────────────────
+const MODULE_TABS = {
+  schedule: ['tasks','appts','all-tasks','members','ai'],
+  finance:  ['finance','ai'],
+  health:   [],
+  docs:     []
+};
+let currentModule = null;
+
+function goHome() {
+  currentModule = null;
+  document.getElementById('module-home').style.display = 'block';
+  document.querySelector('nav').style.display = 'none';
+  document.querySelector('main').style.display = 'none';
+  // 首页日期 + 角标
+  const d = new Date();
+  const days = ['周日','周一','周二','周三','周四','周五','周六'];
+  document.getElementById('home-date').textContent = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${days[d.getDay()]}`;
+  updateHomeBadges();
+}
+
+function updateHomeBadges() {
+  try {
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const todoCount = (appState.tasks||[]).filter(t=>!t.done && t.due && t.due <= todayStr).length;
+    const weekEnd = new Date(Date.now()+7*864e5).toLocaleDateString('en-CA');
+    const apptCount = (appState.appts||[]).filter(a=>a.date >= todayStr && a.date <= weekEnd).length;
+    const n = todoCount + apptCount;
+    document.getElementById('mc-badge-schedule').textContent = n > 0 ? String(n) : '';
+    const curMonth = todayStr.slice(0,7);
+    const mTotal = (appState.bills||[]).filter(b=>(b.date||'').startsWith(curMonth)).reduce((s,b)=>s+Number(b.amount||0),0);
+    document.getElementById('mc-badge-finance').textContent = mTotal > 0 ? '$'+(mTotal>=1000?(mTotal/1000).toFixed(1)+'k':mTotal.toFixed(0)) : '';
+  } catch(e) {}
+}
+
+function enterModule(m) {
+  currentModule = m;
+  document.getElementById('module-home').style.display = 'none';
+  document.querySelector('nav').style.display = '';
+  document.querySelector('main').style.display = '';
+  const tabs = MODULE_TABS[m] || [];
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.style.display = tabs.includes(t.dataset.page) ? '' : 'none';
+  });
+  if(m === 'schedule') showPage('tasks');
+  else if(m === 'finance') showPage('finance');
+  else if(m === 'health') showPage('health');
+  else if(m === 'docs') showPage('docs');
+}
 
 // ── Nav ───────────────────────────────────────────
 function showPage(id) {
@@ -880,6 +989,8 @@ function saveMemberNote(memberId) {
 // ── 财务模块 ──────────────────────────────────────
 const FIN_CATS = ['食品杂货','餐饮','水电气','网络通讯','房贷/房租','保险','汽车/交通','教育','医疗','购物','娱乐','其他'];
 const FIN_CAT_COLORS = {'食品杂货':'#0F6E56','餐饮':'#BA7517','水电气':'#185FA5','网络通讯':'#534AB7','房贷/房租':'#993C1D','保险':'#854F0B','汽车/交通':'#D4537E','教育':'#639922','医疗':'#C2410C','购物':'#7C3AED','娱乐':'#0891B2','其他':'#6B7280'};
+const FIN_LEDGERS = ['个人','Guoqi Research','Green Ring','出租房1','出租房2','住宅共用'];
+const FIN_LEDGER_COLORS = {'个人':'#6B7280','Guoqi Research':'#185FA5','Green Ring':'#0F6E56','出租房1':'#BA7517','出租房2':'#854F0B','住宅共用':'#534AB7'};
 let finViewMonth = null; // 'YYYY-MM' being viewed
 
 function finCurrentMonth() {
@@ -973,13 +1084,63 @@ function renderFinance() {
           <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;"></div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:14px;color:var(--text);">${b.note||b.cat}</div>
-            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.receiptId?' · 📎有收据':''}</div>
+            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.hst?' · HST $'+Number(b.hst).toFixed(2):''}${b.receiptId?' · 📎':''}${b.ledger&&b.ledger!=='个人'?` · <span style="color:${FIN_LEDGER_COLORS[b.ledger]||'#888'};font-weight:600;">${b.ledger}</span>`:''}</div>
           </div>
           <div style="font-size:15px;font-weight:600;color:var(--text);">$${Number(b.amount).toFixed(2)}</div>
           <button onclick="editBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">✏️</button>
           <button onclick="deleteBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">🗑</button>
         </div>`;
       }).join('');
+}
+
+// ── 批量设置账本 ──────────────────────────────────
+let lbBills = [];
+function openLedgerBatch() {
+  const all = appState.bills || [];
+  if(all.length === 0) { alert('还没有任何账单'); return; }
+  // 未设置账本的优先，其余按日期倒序排后面
+  const untagged = all.filter(b=>!b.ledger);
+  lbBills = untagged.length ? untagged : [...all].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  document.getElementById('lb-master').value = '';
+  document.getElementById('lb-list').innerHTML = lbBills.map((b,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.note||b.cat}</div>
+        <div style="font-size:11px;color:var(--text3);">${b.date} · $${Number(b.amount).toFixed(2)}</div>
+      </div>
+      <select id="lb-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);">
+        ${FIN_LEDGERS.map(l=>`<option ${l===(b.ledger||'个人')?'selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>`).join('');
+  document.getElementById('ledger-batch-modal').classList.add('open');
+}
+function lbApplyMaster() {
+  const v = document.getElementById('lb-master').value;
+  if(!v) return;
+  lbBills.forEach((b,i)=>{ const s=document.getElementById('lb-'+i); if(s) s.value=v; });
+}
+function saveLedgerBatch() {
+  lbBills.forEach((b,i)=>{
+    const s = document.getElementById('lb-'+i);
+    if(s) b.ledger = s.value;
+  });
+  document.getElementById('ledger-batch-modal').classList.remove('open');
+  saveAndSync();
+  renderFinance();
+  alert('✅ 账本已更新');
+}
+
+// 查重：金额相同（±0.01）且日期相差5天内
+function findDupBill(amount, dateStr, excludeId) {
+  const amt = Number(amount)||0;
+  if(!amt || !dateStr) return null;
+  const target = new Date(dateStr + 'T12:00:00').getTime();
+  return (appState.bills||[]).find(b => {
+    if(excludeId && b.id === excludeId) return false;
+    if(Math.abs(Number(b.amount)-amt) > 0.01) return false;
+    const d = new Date((b.date||'') + 'T12:00:00').getTime();
+    return Math.abs(d - target) <= 5*864e5;
+  }) || null;
 }
 
 function openBillModal(prefill) {
@@ -990,7 +1151,12 @@ function openBillModal(prefill) {
   document.getElementById('b-date').value = prefill?.date ?? new Date().toLocaleDateString('en-CA');
   document.getElementById('b-cat').value = prefill?.cat && FIN_CATS.includes(prefill.cat) ? prefill.cat : '其他';
   document.getElementById('b-note').value = prefill?.note ?? '';
-  if(prefill?.who) whoSel.value = prefill.who;
+  whoSel.value = prefill?.who || 'Jin';
+  document.getElementById('b-ledger').value = prefill?.ledger && FIN_LEDGERS.includes(prefill.ledger) ? prefill.ledger : '个人';
+  document.getElementById('b-hst').value = prefill?.hst ?? '';
+  const dw = document.getElementById('b-dup-warning');
+  if(prefill?.dupWarning) { dw.textContent = prefill.dupWarning; dw.style.display = 'block'; }
+  else dw.style.display = 'none';
   document.getElementById('b-edit-id').value = prefill?.id ?? '';
   document.getElementById('b-receipt-id').value = prefill?.receiptId ?? '';
   document.getElementById('bill-modal').classList.add('open');
@@ -1006,6 +1172,8 @@ function saveBill() {
     cat: document.getElementById('b-cat').value,
     who: document.getElementById('b-who').value,
     note: document.getElementById('b-note').value.trim(),
+    ledger: document.getElementById('b-ledger').value,
+    hst: parseFloat(document.getElementById('b-hst').value) || 0,
     receiptId: document.getElementById('b-receipt-id').value || ''
   };
   if(!appState.bills) appState.bills = [];
@@ -1112,7 +1280,7 @@ async function handleReceiptUpload(event) {
         messages:[{role:'user', content:[
           {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
           {type:'text', text:`识别这张收据，返回纯JSON（不要任何其他文字、不要markdown）：
-{"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "cat": "从这些分类中选一个：${FIN_CATS.join('、')}"}
+{"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "hst": 收据上标注的HST或GST税额数字（没有就是0）, "cat": "从这些分类中选一个：${FIN_CATS.join('、')}"}
 如果某项看不清就用null。日期看不清就用null。`}
         ]}]
       })
@@ -1135,12 +1303,15 @@ async function handleReceiptUpload(event) {
     proc.style.display = 'none';
 
     // Open modal with prefilled values for confirmation
+    const dup = findDupBill(parsed.amount, billDate);
     openBillModal({
       amount: parsed.amount || '',
       date: billDate,
       cat: parsed.cat || '其他',
       note: parsed.merchant || '',
-      receiptId: receiptId
+      hst: parsed.hst || '',
+      receiptId: receiptId,
+      dupWarning: dup ? `⚠️ 疑似重复：已有 ${dup.date} 「${dup.note||dup.cat}」$${Number(dup.amount).toFixed(2)}，请确认是否同一笔` : ''
     });
   } catch(e) {
     proc.style.display = 'none';
@@ -1214,18 +1385,21 @@ async function handleStatementUpload(event) {
 
 function renderStatementReview() {
   const listEl = document.getElementById('statement-list');
-  listEl.innerHTML = pendingStatementTxns.map((t,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);">
-      <input type="checkbox" id="stx-${i}" checked style="flex-shrink:0;width:16px;height:16px;" />
+  listEl.innerHTML = pendingStatementTxns.map((t,i)=>{
+    const dup = findDupBill(t.amount, t.date);
+    t.__dup = !!dup;
+    return `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);${dup?'background:var(--warn-bg);border-radius:8px;padding-left:6px;padding-right:6px;':''}">
+      <input type="checkbox" id="stx-${i}" ${dup?'':'checked'} style="flex-shrink:0;width:16px;height:16px;" />
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.merchant||'未知商家'}</div>
-        <div style="font-size:11px;color:var(--text3);">${t.date||'日期未知'}</div>
+        <div style="font-size:11px;color:var(--text3);">${t.date||'日期未知'}${dup?` · <span style="color:var(--warn-text);font-weight:600;">疑似重复：${dup.date} ${dup.note||dup.cat}</span>`:''}</div>
       </div>
       <select id="stx-cat-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:90px;">
         ${FIN_CATS.map(c=>`<option ${c===t.cat?'selected':''}>${c}</option>`).join('')}
       </select>
       <div style="font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;">$${Number(t.amount||0).toFixed(2)}</div>
-    </div>`).join('');
+    </div>`;}).join('');
   const total = pendingStatementTxns.reduce((s,t)=>s+Number(t.amount||0),0);
   document.getElementById('statement-confirm-btn').textContent = `添加 ${pendingStatementTxns.length} 笔（共 $${total.toFixed(2)}）`;
   document.getElementById('statement-modal').classList.add('open');
@@ -1245,6 +1419,8 @@ function confirmStatementImport() {
       cat: catSel ? catSel.value : (t.cat||'其他'),
       note: t.merchant || '',
       who: 'Jin',
+      ledger: document.getElementById('statement-ledger').value || '个人',
+      hst: 0,
       receiptId: '',
       created: new Date().toISOString()
     });
@@ -1403,7 +1579,7 @@ function parseAndExecuteActions(text) {
         appState.appts=appState.appts.filter(a=>a.id!==action.id);
       } else if(action.op==='addBill') {
         if(!appState.bills) appState.bills=[];
-        appState.bills.push({id:uid(), amount:Number(action.amount)||0, date:action.date||new Date().toLocaleDateString('en-CA'), cat:action.cat||'其他', note:action.note||'', who:action.who||'', receiptId:'', created:new Date().toISOString()});
+        appState.bills.push({id:uid(), amount:Number(action.amount)||0, date:action.date||new Date().toLocaleDateString('en-CA'), cat:action.cat||'其他', note:action.note||'', who:action.who||'Jin', ledger:action.ledger||'个人', hst:Number(action.hst)||0, receiptId:'', created:new Date().toISOString()});
       } else if(action.op==='deleteBill') {
         appState.bills=(appState.bills||[]).filter(b=>b.id!==action.id);
       }
@@ -1546,11 +1722,38 @@ function clearAIChat() {
 </script>
 
 <!-- API Key 设置 Modal -->
+<!-- 批量账本 Modal -->
+<div class="modal-wrap" id="ledger-batch-modal">
+  <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="modal-title">🏷 批量设置账本</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <label style="font-size:12px;color:var(--text2);flex-shrink:0;">全部设为：</label>
+      <select id="lb-master" onchange="lbApplyMaster()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
+        <option value="">— 选择 —</option>
+        <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
+        <option>出租房1</option><option>出租房2</option><option>住宅共用</option>
+      </select>
+    </div>
+    <div id="lb-list" style="flex:1;overflow-y:auto;min-height:80px;max-height:50vh;"></div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn" onclick="document.getElementById('ledger-batch-modal').classList.remove('open')">取消</button>
+      <button class="btn btn-primary" onclick="saveLedgerBatch()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- PDF账单审核 Modal -->
 <div class="modal-wrap" id="statement-modal">
   <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
     <div class="modal-title">📄 账单识别结果</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">请核对以下交易，取消勾选不需要的，确认后批量记账。</p>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">请核对以下交易，取消勾选不需要的，确认后批量记账。疑似重复的交易已自动取消勾选。</p>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+      <label style="font-size:12px;color:var(--text2);flex-shrink:0;">本批账本：</label>
+      <select id="statement-ledger" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
+        <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
+        <option>出租房1</option><option>出租房2</option><option>住宅共用</option>
+      </select>
+    </div>
     <div id="statement-list" style="flex:1;overflow-y:auto;min-height:100px;max-height:50vh;"></div>
     <div class="modal-actions" style="margin-top:12px;">
       <button class="btn" onclick="document.getElementById('statement-modal').classList.remove('open')">取消</button>
@@ -1584,6 +1787,18 @@ function clearAIChat() {
         <select id="b-who"></select>
       </div>
     </div>
+    <div class="form-row">
+      <div style="flex:1"><label class="fl">账本</label>
+        <select id="b-ledger">
+          <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
+          <option>出租房1</option><option>出租房2</option><option>住宅共用</option>
+        </select>
+      </div>
+      <div style="flex:1"><label class="fl">HST/GST ($)</label>
+        <input type="number" id="b-hst" placeholder="0.00" step="0.01" min="0" />
+      </div>
+    </div>
+    <div id="b-dup-warning" style="display:none;background:var(--warn-bg);color:var(--warn-text);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px;"></div>
     <div class="form-row"><label class="fl" style="flex-basis:100%">商家/备注</label>
       <input type="text" id="b-note" placeholder="比如 Costco、Enbridge…" style="flex-basis:100%" />
     </div>
