@@ -133,16 +133,6 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
   .mp-all .av{width:32px;height:32px;}
 }
 .ai-msg{display:flex;flex-direction:column;gap:2px;}.ai-msg-user{align-items:flex-end;}.ai-msg-system,.ai-msg-ai{align-items:flex-start;}.ai-msg-bubble{max-width:85%;padding:10px 13px;border-radius:14px;font-size:13px;line-height:1.6;}.ai-msg-user .ai-msg-bubble{background:var(--accent);color:#fff;border-bottom-right-radius:4px;}.ai-msg-ai .ai-msg-bubble,.ai-msg-system .ai-msg-bubble{background:var(--surface2);color:var(--text);border-bottom-left-radius:4px;}.ai-msg-ai .ai-msg-bubble h4{font-size:13px;font-weight:600;margin:8px 0 4px;color:var(--accent-text);}.ai-msg-ai .ai-msg-bubble ul{padding-left:16px;margin:4px 0;}.ai-msg-ai .ai-msg-bubble li{margin:3px 0;}.ai-thinking{opacity:0.6;font-style:italic;}.ai-action-bar{background:var(--accent-bg);border-radius:10px;padding:10px 12px;margin-top:6px;font-size:12px;color:var(--accent-text);}.ai-action-btn{display:inline-block;margin:4px 4px 0 0;padding:4px 10px;border-radius:6px;border:1px solid var(--accent);background:var(--surface);color:var(--accent-text);font-size:12px;cursor:pointer;font-weight:500;}.ai-action-btn:hover{background:var(--accent-bg);}
-.module-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:22px 18px;cursor:pointer;text-align:center;transition:transform .12s,box-shadow .12s;position:relative;}
-.module-card:hover{transform:translateY(-2px);box-shadow:0 4px 14px rgba(0,0,0,0.08);}
-.module-card .mc-icon{font-size:34px;margin-bottom:8px;}
-.module-card .mc-title{font-size:16px;font-weight:600;color:var(--text);}
-.module-card .mc-sub{font-size:11px;color:var(--text3);margin-top:4px;}
-.module-card .mc-badge{position:absolute;top:10px;right:12px;font-size:11px;color:var(--accent-text);background:var(--accent-bg);border-radius:10px;padding:1px 8px;font-weight:600;}
-.module-card .mc-badge:empty{display:none;}
-.module-card-soon{opacity:0.55;}
-.nav-home{flex:0 0 auto;background:none;border:0.5px solid var(--border2);border-radius:8px;padding:4px 9px;font-size:14px;cursor:pointer;margin-right:2px;}
-.nav-home:hover{background:var(--surface2);}
 </style>
 </head>
 <body>
@@ -161,48 +151,15 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
 
 <!-- Main app (hidden until authenticated) -->
 <div id="app" style="display:none">
-<!-- 模块首页 -->
-<div id="module-home" style="display:none;">
-  <div style="max-width:680px;margin:0 auto;padding:36px 16px 60px;">
-    <div style="text-align:center;margin-bottom:28px;">
-      <div style="font-size:40px;">🏠</div>
-      <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
-      <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.4 · 2026-06-11</div>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
-      <div class="module-card" onclick="enterModule('schedule')">
-        <div class="mc-icon">📅</div><div class="mc-title">日程</div>
-        <div class="mc-sub">任务 · 预约 · AI秘书</div>
-        <div class="mc-badge" id="mc-badge-schedule"></div>
-      </div>
-      <div class="module-card" onclick="enterModule('finance')">
-        <div class="mc-icon">💰</div><div class="mc-title">财务</div>
-        <div class="mc-sub">记账 · 统计 · 收据归档</div>
-        <div class="mc-badge" id="mc-badge-finance"></div>
-      </div>
-      <div class="module-card module-card-soon" onclick="enterModule('health')">
-        <div class="mc-icon">🏥</div><div class="mc-title">健康</div>
-        <div class="mc-sub">即将推出</div>
-      </div>
-      <div class="module-card module-card-soon" onclick="enterModule('docs')">
-        <div class="mc-icon">📁</div><div class="mc-title">文档</div>
-        <div class="mc-sub">即将推出</div>
-      </div>
-    </div>
-  </div>
-</div>
 <nav>
   <div class="nav-logo">家庭<span>助手</span></div>
   <div class="nav-tabs">
-    <button class="nav-home" onclick="goHome()" title="返回模块首页">🏠</button>
-    <button class="nav-tab active" data-page="tasks" onclick="showPage('tasks')">今日</button>
-    <button class="nav-tab" data-page="appts" onclick="showPage('appts')">预约</button>
-    <button class="nav-tab" data-page="all-tasks" onclick="showPage('all-tasks')">任务</button>
-    <button class="nav-tab" data-page="members" onclick="showPage('members')">成员</button>
-    <button class="nav-tab" data-page="ai" onclick="showPage('ai')">🤖 AI</button>
-    <button class="nav-tab" data-page="finance" onclick="showPage('finance')">💰 财务</button>
-    <button class="nav-tab" data-page="worklog" onclick="showPage('worklog')">📝 工作日志</button>
+    <button class="nav-tab active" onclick="showPage('tasks')">今日</button>
+    <button class="nav-tab" onclick="showPage('appts')">预约</button>
+    <button class="nav-tab" onclick="showPage('all-tasks')">任务</button>
+    <button class="nav-tab" onclick="showPage('members')">成员</button>
+    <button class="nav-tab" onclick="showPage('ai')">🤖 AI</button>
+    <button class="nav-tab" onclick="showPage('finance')">💰 财务</button>
   </div>
   <div class="nav-right">
     <button class="sync-btn" id="sync-btn" onclick="syncToDrive()">
@@ -299,7 +256,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
         <div class="ai-msg ai-msg-system"><div class="ai-msg-bubble">👋 你好！我是你的家庭AI秘书。点击「生成今日简报」开始，或直接告诉我你想做什么。</div></div>
       </div>
       <div style="border-top:0.5px solid var(--border);padding:10px 12px;">
-        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;" id="ai-quick-btns">
+        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
           <button class="btn btn-sm btn-primary" onclick="aiQuickAction('briefing')">📋 生成今日简报</button>
           <button class="btn btn-sm" onclick="aiQuickAction('schedule')">📅 帮我安排任务</button>
           <button class="btn btn-sm" onclick="aiQuickAction('urgent')">🔴 最紧急的事</button>
@@ -328,15 +285,10 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
         <input type="file" id="statement-input" accept="application/pdf" style="display:none;" onchange="handleStatementUpload(event)" />
       </label>
       <button class="btn" onclick="openBillModal()">✏️ 手动记一笔</button>
-      <button class="btn" onclick="openLedgerBatch()">🏷 批量设置账本</button>
     </div>
 
     <div id="receipt-processing" style="display:none;background:var(--accent-bg);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--accent-text);">
       🤖 AI 正在识别收据内容…
-    </div>
-    <div id="fin-import-banner" style="display:none;background:var(--success-bg);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--success-text);align-items:center;justify-content:space-between;gap:8px;">
-      <span id="fin-import-banner-text"></span>
-      <button class="btn btn-sm btn-primary" onclick="aiAnalyzeImport()" style="flex-shrink:0;">🤖 AI 分析本次导入</button>
     </div>
 
     <!-- 本月统计 -->
@@ -365,73 +317,11 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
 
     <!-- 账单列表 -->
     <div class="card">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;" id="fin-list-label">本月账单明细</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">本月账单明细</div>
       <div id="fin-bill-list"></div>
     </div>
   </div>
 
-  <!-- 工作日志 -->
-  <div class="page" id="page-worklog">
-    <div class="sec-header">
-      <div><div class="sec-title">工作日志</div><div class="sec-sub">Green Ring 服务记录 · CRA 审核凭证 · 当天记录最可信</div></div>
-    </div>
-
-    <!-- 快速记录 -->
-    <div class="card" style="margin-bottom:12px;">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">⏱ 记一条（30秒）</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
-        <input type="date" id="wl-date" style="font-size:13px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);" />
-        <select id="wl-type" style="font-size:13px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);">
-          <option>内容投放</option><option>客户开发</option><option>网站项目</option>
-          <option>设计制作</option><option>客服</option><option>其他</option>
-        </select>
-        <input type="number" id="wl-hours" placeholder="小时" step="0.5" min="0" style="width:70px;font-size:13px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);" />
-        <select id="wl-client" style="font-size:13px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);">
-          <option>Guoqi Researches Ltd</option><option>其他客户</option>
-        </select>
-      </div>
-      <div style="display:flex;gap:6px;">
-        <input type="text" id="wl-desc" placeholder="具体做了什么，比如：撰写并发布2篇LinkedIn内容介绍research服务" style="flex:1;font-size:13px;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);" onkeydown="if(event.key==='Enter')addWorkLog()" />
-        <button class="btn btn-primary" onclick="addWorkLog()">添加</button>
-      </div>
-    </div>
-
-    <!-- 月度汇总 -->
-    <div class="card" style="margin-bottom:12px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-        <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;" id="wl-month-label">本月汇总</div>
-        <div style="display:flex;gap:4px;">
-          <button class="btn btn-sm" onclick="wlChangeMonth(-1)">←</button>
-          <button class="btn btn-sm" onclick="wlChangeMonth(1)">→</button>
-          <button class="btn btn-sm btn-primary" onclick="wlExportMonth()">📋 生成月度汇总</button>
-        </div>
-      </div>
-      <div id="wl-summary"></div>
-    </div>
-
-    <!-- 日志列表 -->
-    <div class="card">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">本月明细</div>
-      <div id="wl-list"></div>
-    </div>
-  </div>
-
-  <!-- 健康（占位） -->
-  <div class="page" id="page-health">
-    <div style="text-align:center;padding:60px 20px;color:var(--text3);">
-      <div style="font-size:44px;">🏥</div>
-      <div style="font-size:16px;font-weight:600;color:var(--text2);margin-top:10px;">健康模块</div>
-      <div style="font-size:13px;margin-top:6px;">疫苗记录、体检报告、用药提醒——即将推出</div>
-    </div>
-  </div>
-  <!-- 文档（占位） -->
-  <div class="page" id="page-docs">
-    <div style="text-align:center;padding:60px 20px;color:var(--text3);">
-      <div style="font-size:44px;">📁</div>
-      <div style="font-size:16px;font-weight:600;color:var(--text2);margin-top:10px;">文档模块</div>
-      <div style="font-size:13px;margin-top:6px;">护照、保险单、合同归档——即将推出</div>
-    </div>
-  </div>
   <!-- 成员 -->
   <div class="page" id="page-members">
     <div class="sec-header">
@@ -524,7 +414,7 @@ const MEMBERS=[
 // ── State ─────────────────────────────────────────
 let accessToken = null;
 let driveFileId = null;
-let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[] };
+let appState = { tasks:[], appts:[], memberNotes:{}, bills:[] };
 let currentFilter = 'all';
 let selectedMember = null;
 const pickerSel = {};
@@ -593,7 +483,6 @@ async function onSignedIn() {
   await loadFromDrive();
   render();
   showAISchedule();
-  goHome();
 }
 
 // ── Google Drive ──────────────────────────────────
@@ -647,8 +536,6 @@ async function loadFromDrive() {
         const data = JSON.parse(text);
         if(data.tasks !== undefined) appState = data;
         if(!appState.bills) appState.bills = [];
-        if(!appState.workLogs) appState.workLogs = [];
-        appState.bills.forEach(b=>{ if(b.ledger==='出租房1') b.ledger='出租房45'; if(b.ledger==='出租房2') b.ledger='出租房15'; });
       }
     }
     setSyncStatus('ok');
@@ -736,67 +623,15 @@ function getPickerValue(cid) {
 }
 function resetPicker(cid) { pickerSel[cid]=new Set(); buildPicker(cid); }
 
-// ── 模块导航 ──────────────────────────────────────
-const MODULE_TABS = {
-  schedule: ['tasks','appts','all-tasks','members','ai'],
-  finance:  ['finance','worklog','ai'],
-  health:   [],
-  docs:     []
-};
-let currentModule = null;
-
-function goHome() {
-  currentModule = null;
-  document.getElementById('module-home').style.display = 'block';
-  document.querySelector('nav').style.display = 'none';
-  document.querySelector('main').style.display = 'none';
-  // 首页日期 + 角标
-  const d = new Date();
-  const days = ['周日','周一','周二','周三','周四','周五','周六'];
-  document.getElementById('home-date').textContent = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日 ${days[d.getDay()]}`;
-  updateHomeBadges();
-}
-
-function updateHomeBadges() {
-  try {
-    const todayStr = new Date().toLocaleDateString('en-CA');
-    const todoCount = (appState.tasks||[]).filter(t=>!t.done && t.due && t.due <= todayStr).length;
-    const weekEnd = new Date(Date.now()+7*864e5).toLocaleDateString('en-CA');
-    const apptCount = (appState.appts||[]).filter(a=>a.date >= todayStr && a.date <= weekEnd).length;
-    const n = todoCount + apptCount;
-    document.getElementById('mc-badge-schedule').textContent = n > 0 ? String(n) : '';
-    const curMonth = todayStr.slice(0,7);
-    const mTotal = (appState.bills||[]).filter(b=>(b.date||'').startsWith(curMonth)).reduce((s,b)=>s+Number(b.amount||0),0);
-    document.getElementById('mc-badge-finance').textContent = mTotal > 0 ? '$'+(mTotal>=1000?(mTotal/1000).toFixed(1)+'k':mTotal.toFixed(0)) : '';
-  } catch(e) {}
-}
-
-function enterModule(m) {
-  currentModule = m;
-  document.getElementById('module-home').style.display = 'none';
-  document.querySelector('nav').style.display = '';
-  document.querySelector('main').style.display = '';
-  const tabs = MODULE_TABS[m] || [];
-  document.querySelectorAll('.nav-tab').forEach(t => {
-    t.style.display = tabs.includes(t.dataset.page) ? '' : 'none';
-  });
-  updateAIQuickButtons();
-  if(m === 'schedule') showPage('tasks');
-  else if(m === 'finance') showPage('finance');
-  else if(m === 'health') showPage('health');
-  else if(m === 'docs') showPage('docs');
-}
-
 // ── Nav ───────────────────────────────────────────
 function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const idx={tasks:0,appts:1,'all-tasks':2,members:3,ai:4,finance:5,worklog:6};
+  const idx={tasks:0,appts:1,'all-tasks':2,members:3,ai:4,finance:5};
   if(idx[id]!==undefined) document.querySelectorAll('.nav-tab')[idx[id]].classList.add('active');
   render();
   if(id==='finance') renderFinance();
-  if(id==='worklog') renderWorkLog();
 }
 
 // ── Render ────────────────────────────────────────
@@ -1043,10 +878,8 @@ function saveMemberNote(memberId) {
 }
 
 // ── 财务模块 ──────────────────────────────────────
-const FIN_CATS = ['食品杂货','餐饮','水电气','网络通讯','房贷/房租','保险','汽车/交通','教育','医疗','购物','娱乐','维修','订阅','其他'];
-const FIN_CAT_COLORS = {'食品杂货':'#0F6E56','餐饮':'#BA7517','水电气':'#185FA5','网络通讯':'#534AB7','房贷/房租':'#993C1D','保险':'#854F0B','汽车/交通':'#D4537E','教育':'#639922','医疗':'#C2410C','购物':'#7C3AED','娱乐':'#0891B2','维修':'#B45309','订阅':'#5B21B6','其他':'#6B7280'};
-const FIN_LEDGERS = ['个人','Guoqi Research','Green Ring','出租房45','出租房15','住宅共用','待定'];
-const FIN_LEDGER_COLORS = {'个人':'#6B7280','Guoqi Research':'#185FA5','Green Ring':'#0F6E56','出租房45':'#BA7517','出租房15':'#854F0B','住宅共用':'#534AB7','待定':'#DC2626'};
+const FIN_CATS = ['食品杂货','餐饮','水电气','网络通讯','房贷/房租','保险','汽车/交通','教育','医疗','购物','娱乐','其他'];
+const FIN_CAT_COLORS = {'食品杂货':'#0F6E56','餐饮':'#BA7517','水电气':'#185FA5','网络通讯':'#534AB7','房贷/房租':'#993C1D','保险':'#854F0B','汽车/交通':'#D4537E','教育':'#639922','医疗':'#C2410C','购物':'#7C3AED','娱乐':'#0891B2','其他':'#6B7280'};
 let finViewMonth = null; // 'YYYY-MM' being viewed
 
 function finCurrentMonth() {
@@ -1128,13 +961,11 @@ function renderFinance() {
       }).join('')}
     </div>`;
 
-  // Bill list（按趋势图选中的分类过滤）
+  // Bill list
   const listEl = document.getElementById('fin-bill-list');
-  const listBills = selCat==='__all__' ? monthBills : monthBills.filter(b=>b.cat===selCat);
-  document.getElementById('fin-list-label').textContent = selCat==='__all__' ? '本月账单明细' : `本月账单明细 · ${selCat}`;
-  const sortedBills = [...listBills].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const sortedBills = [...monthBills].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   listEl.innerHTML = sortedBills.length === 0
-    ? `<div style="font-size:13px;color:var(--text3);">${selCat==='__all__'?'点上方按钮添加第一笔账单':'本月没有「'+selCat+'」类支出'}</div>`
+    ? '<div style="font-size:13px;color:var(--text3);">点上方按钮添加第一笔账单</div>'
     : sortedBills.map(b => {
         const c = FIN_CAT_COLORS[b.cat]||'#6B7280';
         const whoName = b.who || '';
@@ -1142,265 +973,13 @@ function renderFinance() {
           <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;"></div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:14px;color:var(--text);">${b.note||b.cat}</div>
-            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.hst?' · HST $'+Number(b.hst).toFixed(2):''}${b.receiptId?' · 📎':''}${b.ledger&&b.ledger!=='个人'?` · <span style="color:${FIN_LEDGER_COLORS[b.ledger]||'#888'};font-weight:600;">${b.ledger}</span>`:''}</div>
+            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.receiptId?' · 📎有收据':''}</div>
           </div>
           <div style="font-size:15px;font-weight:600;color:var(--text);">$${Number(b.amount).toFixed(2)}</div>
           <button onclick="editBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">✏️</button>
           <button onclick="deleteBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">🗑</button>
         </div>`;
       }).join('');
-}
-
-// ── 收据单项分账 ──────────────────────────────────
-let pendingReceipt = null;
-
-function renderReceiptItems() {
-  const { parsed } = pendingReceipt;
-  const items = parsed.items;
-  const itemsTotal = items.reduce((s,it)=>s+Number(it.amount||0),0);
-  document.getElementById('ri-summary').textContent =
-    `${parsed.merchant||'未知商家'} · ${pendingReceipt.billDate} · 收据总额 $${Number(parsed.amount||0).toFixed(2)}（单项合计税前 $${itemsTotal.toFixed(2)}，HST $${Number(parsed.hst||0).toFixed(2)}）· 为不同账本的单项分别选择，相同账本+类别会自动合并`;
-  document.getElementById('ri-list').innerHTML = items.map((it,i)=>`
-    <div style="display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:0.5px solid var(--border);">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.name||'未知商品')}</div>
-        <div style="font-size:11px;color:var(--text3);">$${Number(it.amount||0).toFixed(2)}${it.taxable?' +HST':''}</div>
-      </div>
-      <select id="ri-cat-${i}" style="font-size:11px;padding:3px 4px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:86px;">
-        ${FIN_CATS.map(c=>`<option ${c===(parsed.cat||'其他')?'selected':''}>${c}</option>`).join('')}
-      </select>
-      <select id="ri-led-${i}" style="font-size:11px;padding:3px 4px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:104px;">
-        ${FIN_LEDGERS.map(l=>`<option ${l==='个人'?'selected':''}>${l}</option>`).join('')}
-      </select>
-    </div>`).join('');
-  document.getElementById('receipt-items-modal').classList.add('open');
-}
-
-function confirmReceiptItems() {
-  const { parsed, billDate, receiptId } = pendingReceipt;
-  const items = parsed.items;
-  // 按 账本+类别 分组
-  const groups = {};
-  items.forEach((it,i)=>{
-    const cat = document.getElementById('ri-cat-'+i).value;
-    const led = document.getElementById('ri-led-'+i).value;
-    const key = led + '|' + cat;
-    if(!groups[key]) groups[key] = { led, cat, pre:0, hst:0, names:[] };
-    const amt = Number(it.amount||0);
-    groups[key].pre += amt;
-    if(it.taxable) groups[key].hst += amt * 0.13;
-    groups[key].names.push(it.name||'');
-  });
-  // HST 校准：按比例缩放使合计等于收据 HST
-  const calcHst = Object.values(groups).reduce((s,g)=>s+g.hst,0);
-  const realHst = Number(parsed.hst||0);
-  const scale = (calcHst > 0 && realHst > 0) ? realHst/calcHst : (realHst>0?0:1);
-  if(!appState.bills) appState.bills = [];
-  let added = 0;
-  Object.values(groups).forEach(g=>{
-    const hst = Math.round(g.hst * (scale||0) * 100)/100;
-    const namesStr = g.names.slice(0,3).join('、') + (g.names.length>3?` 等${g.names.length}项`:'');
-    appState.bills.push({
-      id: uid(), amount: Math.round((g.pre + hst)*100)/100, date: billDate,
-      cat: g.cat, note: `${parsed.merchant||''} - ${namesStr}`,
-      who: 'Jin', ledger: g.led, hst, receiptId: receiptId||'', created: new Date().toISOString()
-    });
-    added++;
-  });
-  pendingReceipt = null;
-  document.getElementById('receipt-items-modal').classList.remove('open');
-  saveAndSync();
-  renderFinance();
-  alert(`✅ 已按账本分组入账 ${added} 笔`);
-}
-
-function riFallbackSingle() {
-  const { parsed, billDate, receiptId } = pendingReceipt;
-  pendingReceipt = null;
-  document.getElementById('receipt-items-modal').classList.remove('open');
-  const dup = findDupBill(parsed.amount, billDate);
-  openBillModal({
-    amount: parsed.amount || '', date: billDate, cat: parsed.cat || '其他',
-    note: parsed.merchant || '', hst: parsed.hst || '', receiptId: receiptId,
-    dupWarning: dup ? `⚠️ 疑似重复：已有 ${dup.date} 「${dup.note||dup.cat}」$${Number(dup.amount).toFixed(2)}` : ''
-  });
-}
-
-// ── 工作日志（Green Ring 服务记录）──────────────────
-const WL_CLIENT_MAIN = 'Guoqi Researches Ltd';
-let wlViewMonth = null;
-
-function wlCurrentMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-}
-
-function wlChangeMonth(delta) {
-  const [y,m] = (wlViewMonth||wlCurrentMonth()).split('-').map(Number);
-  const d = new Date(y, m-1+delta, 1);
-  wlViewMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
-  renderWorkLog();
-}
-
-function addWorkLog() {
-  const date = document.getElementById('wl-date').value;
-  const hours = parseFloat(document.getElementById('wl-hours').value);
-  const desc = document.getElementById('wl-desc').value.trim();
-  if(!date) { alert('请选择日期'); return; }
-  if(!hours || hours <= 0) { alert('请输入工时'); return; }
-  if(!desc) { alert('请填写具体工作内容——越具体，CRA审核时越有说服力'); return; }
-  if(!appState.workLogs) appState.workLogs = [];
-  appState.workLogs.push({
-    id: uid(),
-    date,
-    type: document.getElementById('wl-type').value,
-    hours,
-    desc,
-    client: document.getElementById('wl-client').value,
-    created: new Date().toISOString()
-  });
-  document.getElementById('wl-hours').value = '';
-  document.getElementById('wl-desc').value = '';
-  saveAndSync();
-  renderWorkLog();
-}
-
-function deleteWorkLog(id) {
-  if(!confirm('确定删除这条工作记录吗？')) return;
-  appState.workLogs = (appState.workLogs||[]).filter(w=>w.id!==id);
-  saveAndSync();
-  renderWorkLog();
-}
-
-function renderWorkLog() {
-  const page = document.getElementById('page-worklog');
-  if(!page || !page.classList.contains('active')) return;
-  // 日期默认今天
-  const dEl = document.getElementById('wl-date');
-  if(dEl && !dEl.value) dEl.value = new Date().toLocaleDateString('en-CA');
-
-  const month = wlViewMonth || wlCurrentMonth();
-  const [y,m] = month.split('-');
-  document.getElementById('wl-month-label').textContent = `${y}年${Number(m)}月汇总`;
-
-  const logs = (appState.workLogs||[]).filter(w=>(w.date||'').startsWith(month));
-  const guoqiLogs = logs.filter(w=>w.client===WL_CLIENT_MAIN);
-  const otherLogs = logs.filter(w=>w.client!==WL_CLIENT_MAIN);
-  const gh = guoqiLogs.reduce((s,w)=>s+Number(w.hours||0),0);
-  const oh = otherLogs.reduce((s,w)=>s+Number(w.hours||0),0);
-
-  // 按类型分解（仅 Guoqi）
-  const byType = {};
-  guoqiLogs.forEach(w=>{ byType[w.type]=(byType[w.type]||0)+Number(w.hours||0); });
-  const typeStr = Object.entries(byType).sort((a,b)=>b[1]-a[1])
-    .map(([t,h])=>`${t} ${h}h`).join(' · ') || '—';
-
-  document.getElementById('wl-summary').innerHTML = `
-    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;">
-      <div><div style="font-size:22px;font-weight:700;color:var(--text);">${gh}<span style="font-size:13px;font-weight:400;"> 小时</span></div>
-        <div style="font-size:11px;color:var(--text3);">为 ${WL_CLIENT_MAIN}</div></div>
-      ${oh>0?`<div><div style="font-size:22px;font-weight:700;color:var(--text3);">${oh}<span style="font-size:13px;font-weight:400;"> 小时</span></div>
-        <div style="font-size:11px;color:var(--text3);">其他客户</div></div>`:''}
-    </div>
-    <div style="font-size:12px;color:var(--text2);">${typeStr}</div>`;
-
-  const sorted = [...logs].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('wl-list').innerHTML = sorted.length===0
-    ? '<div style="font-size:13px;color:var(--text3);">本月还没有记录——每天30秒，年底安心</div>'
-    : sorted.map(w=>`
-      <div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);">
-        <div style="flex-shrink:0;font-size:11px;color:var(--text3);width:42px;padding-top:2px;">${w.date.slice(5)}</div>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;color:var(--text);">${esc(w.desc)}</div>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${w.type} · ${w.hours}h${w.client!==WL_CLIENT_MAIN?' · <span style=\"color:var(--warn-text);\">其他客户</span>':''}</div>
-        </div>
-        <button onclick="deleteWorkLog('${w.id}')" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--text3);padding:2px;">🗑</button>
-      </div>`).join('');
-}
-
-function wlExportMonth() {
-  const month = wlViewMonth || wlCurrentMonth();
-  const [y,m] = month.split('-');
-  const logs = (appState.workLogs||[]).filter(w=>(w.date||'').startsWith(month) && w.client===WL_CLIENT_MAIN)
-    .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  if(logs.length===0) { alert('本月没有为 '+WL_CLIENT_MAIN+' 的工作记录'); return; }
-  const total = logs.reduce((s,w)=>s+Number(w.hours||0),0);
-  const byType = {};
-  logs.forEach(w=>{ byType[w.type]=(byType[w.type]||0)+Number(w.hours||0); });
-
-  let txt = `Green Ring Communications — 月度服务工作记录\n`;
-  txt += `Service Work Log\n`;
-  txt += `══════════════════════════════════\n`;
-  txt += `服务对象 / Client: ${WL_CLIENT_MAIN}\n`;
-  txt += `期间 / Period: ${y}年${Number(m)}月 (${month})\n`;
-  txt += `合计工时 / Total Hours: ${total} 小时\n\n`;
-  txt += `按类型 / By Category:\n`;
-  Object.entries(byType).sort((a,b)=>b[1]-a[1]).forEach(([t,h])=>{ txt += `  ${t}: ${h} 小时\n`; });
-  txt += `\n工作明细 / Details:\n`;
-  txt += `──────────────────────────────────\n`;
-  logs.forEach(w=>{ txt += `${w.date}  [${w.type}] ${w.hours}h\n  ${w.desc}\n`; });
-  txt += `──────────────────────────────────\n`;
-  txt += `本记录由家庭助手系统按日同期生成 / Contemporaneous records\n`;
-  txt += `导出时间 / Exported: ${new Date().toLocaleString('en-CA')}\n`;
-
-  document.getElementById('wl-export-text').value = txt;
-  document.getElementById('wl-export-modal').classList.add('open');
-}
-
-function wlCopyExport() {
-  const ta = document.getElementById('wl-export-text');
-  ta.select();
-  navigator.clipboard.writeText(ta.value).then(()=>alert('✅ 已复制'), ()=>{ document.execCommand('copy'); alert('✅ 已复制'); });
-}
-
-// ── 批量设置账本 ──────────────────────────────────
-let lbBills = [];
-function openLedgerBatch() {
-  const all = appState.bills || [];
-  if(all.length === 0) { alert('还没有任何账单'); return; }
-  // 未设置账本的优先，其余按日期倒序排后面
-  const untagged = all.filter(b=>!b.ledger);
-  lbBills = untagged.length ? untagged : [...all].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
-  document.getElementById('lb-master').value = '';
-  document.getElementById('lb-list').innerHTML = lbBills.map((b,i)=>`
-    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${b.note||b.cat}</div>
-        <div style="font-size:11px;color:var(--text3);">${b.date} · $${Number(b.amount).toFixed(2)}</div>
-      </div>
-      <select id="lb-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);">
-        ${FIN_LEDGERS.map(l=>`<option ${l===(b.ledger||'个人')?'selected':''}>${l}</option>`).join('')}
-      </select>
-    </div>`).join('');
-  document.getElementById('ledger-batch-modal').classList.add('open');
-}
-function lbApplyMaster() {
-  const v = document.getElementById('lb-master').value;
-  if(!v) return;
-  lbBills.forEach((b,i)=>{ const s=document.getElementById('lb-'+i); if(s) s.value=v; });
-}
-function saveLedgerBatch() {
-  lbBills.forEach((b,i)=>{
-    const s = document.getElementById('lb-'+i);
-    if(s) b.ledger = s.value;
-  });
-  document.getElementById('ledger-batch-modal').classList.remove('open');
-  saveAndSync();
-  renderFinance();
-  alert('✅ 账本已更新');
-}
-
-// 查重：金额相同（±0.01）且日期相差5天内
-function findDupBill(amount, dateStr, excludeId) {
-  const amt = Number(amount)||0;
-  if(!amt || !dateStr) return null;
-  const target = new Date(dateStr + 'T12:00:00').getTime();
-  return (appState.bills||[]).find(b => {
-    if(excludeId && b.id === excludeId) return false;
-    if(Math.abs(Number(b.amount)-amt) > 0.01) return false;
-    const d = new Date((b.date||'') + 'T12:00:00').getTime();
-    return Math.abs(d - target) <= 5*864e5;
-  }) || null;
 }
 
 function openBillModal(prefill) {
@@ -1411,12 +990,7 @@ function openBillModal(prefill) {
   document.getElementById('b-date').value = prefill?.date ?? new Date().toLocaleDateString('en-CA');
   document.getElementById('b-cat').value = prefill?.cat && FIN_CATS.includes(prefill.cat) ? prefill.cat : '其他';
   document.getElementById('b-note').value = prefill?.note ?? '';
-  whoSel.value = prefill?.who || 'Jin';
-  document.getElementById('b-ledger').value = prefill?.ledger && FIN_LEDGERS.includes(prefill.ledger) ? prefill.ledger : '个人';
-  document.getElementById('b-hst').value = prefill?.hst ?? '';
-  const dw = document.getElementById('b-dup-warning');
-  if(prefill?.dupWarning) { dw.textContent = prefill.dupWarning; dw.style.display = 'block'; }
-  else dw.style.display = 'none';
+  if(prefill?.who) whoSel.value = prefill.who;
   document.getElementById('b-edit-id').value = prefill?.id ?? '';
   document.getElementById('b-receipt-id').value = prefill?.receiptId ?? '';
   document.getElementById('bill-modal').classList.add('open');
@@ -1432,8 +1006,6 @@ function saveBill() {
     cat: document.getElementById('b-cat').value,
     who: document.getElementById('b-who').value,
     note: document.getElementById('b-note').value.trim(),
-    ledger: document.getElementById('b-ledger').value,
-    hst: parseFloat(document.getElementById('b-hst').value) || 0,
     receiptId: document.getElementById('b-receipt-id').value || ''
   };
   if(!appState.bills) appState.bills = [];
@@ -1492,10 +1064,9 @@ async function findOrCreateReceiptFolder(yearMonth) {
   return (await cr2.json()).id;
 }
 
-async function uploadReceiptToDrive(base64Data, mimeType, yearMonth, merchant) {
+async function uploadReceiptToDrive(base64Data, mimeType, yearMonth) {
   const folderId = await findOrCreateReceiptFolder(yearMonth);
-  const safeMerchant = (merchant||'').replace(/[\\/:*?"<>|]/g,'').slice(0,30);
-  const fileName = `收据_${yearMonth}_${safeMerchant||'未知商家'}_${Date.now().toString().slice(-6)}.${mimeType.split('/')[1]==='jpeg'?'jpg':mimeType.split('/')[1]}`;
+  const fileName = `收据_${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}.${mimeType.split('/')[1]==='jpeg'?'jpg':mimeType.split('/')[1]}`;
   const boundary = '-------fa' + Date.now();
   const meta = JSON.stringify({name:fileName, parents:[folderId]});
   const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64Data}\r\n--${boundary}--`;
@@ -1541,11 +1112,8 @@ async function handleReceiptUpload(event) {
         messages:[{role:'user', content:[
           {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
           {type:'text', text:`识别这张收据，返回纯JSON（不要任何其他文字、不要markdown）：
-{"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "hst": 收据上标注的HST或GST税额总数字（没有就是0）, "cat": "从这些分类中选一个：${FIN_CATS.join('、')}", "items": [{"name":"单项商品名","amount":税前价格数字,"taxable":true或false}]}
-规则：
-- items：购物类收据（超市、Costco、Canadian Tire等）逐项列出每个商品；单一服务账单（油费、餐费）items留空数组
-- taxable：该商品是否需缴HST（安省食品杂货大多免税false，日用品电器等为true）；以收据上的税码标记为准
-- 如果某项看不清就用null。日期看不清就用null。`}
+{"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "cat": "从这些分类中选一个：${FIN_CATS.join('、')}"}
+如果某项看不清就用null。日期看不清就用null。`}
         ]}]
       })
     });
@@ -1561,27 +1129,18 @@ async function handleReceiptUpload(event) {
     const billDate = parsed.date || new Date().toLocaleDateString('en-CA');
     const yearMonth = billDate.slice(0,7);
     let receiptId = '';
-    try { receiptId = await uploadReceiptToDrive(base64, file.type, yearMonth, parsed.merchant); }
+    try { receiptId = await uploadReceiptToDrive(base64, file.type, yearMonth); }
     catch(e) { console.error('收据上传失败', e); }
 
     proc.style.display = 'none';
 
     // Open modal with prefilled values for confirmation
-    // 多单项收据 → 分账界面
-    if(Array.isArray(parsed.items) && parsed.items.length > 1) {
-      pendingReceipt = { parsed, billDate, receiptId };
-      renderReceiptItems();
-      return;
-    }
-    const dup = findDupBill(parsed.amount, billDate);
     openBillModal({
       amount: parsed.amount || '',
       date: billDate,
       cat: parsed.cat || '其他',
       note: parsed.merchant || '',
-      hst: parsed.hst || '',
-      receiptId: receiptId,
-      dupWarning: dup ? `⚠️ 疑似重复：已有 ${dup.date} 「${dup.note||dup.cat}」$${Number(dup.amount).toFixed(2)}，请确认是否同一笔` : ''
+      receiptId: receiptId
     });
   } catch(e) {
     proc.style.display = 'none';
@@ -1625,13 +1184,12 @@ async function handleStatementUpload(event) {
         messages:[{role:'user', content:[
           {type:'document', source:{type:'base64', media_type:'application/pdf', data:base64}},
           {type:'text', text:`这是一份账单/信用卡月结单。提取其中所有消费交易，返回纯JSON数组（不要任何其他文字、不要markdown代码块）：
-[{"date":"YYYY-MM-DD","merchant":"商家名","amount":金额数字,"hst":HST或GST税额数字,"cat":"分类"}]
+[{"date":"YYYY-MM-DD","merchant":"商家名","amount":金额数字,"cat":"分类"}]
 
 规则：
 - 分类必须从这些里选：${FIN_CATS.join('、')}
 - 只提取消费/扣款，跳过还款记录（如 PAYMENT THANK YOU）、退款和利息调整
 - 金额用正数
-- hst：账单上明确标注的HST/GST税额（如电话费、水电账单上的税额行）；信用卡月结单逐笔交易通常不显示税额，此时hst填0
 - 如果是电话费/网费这类单一账单（不是逐笔交易的月结单），就返回一条记录，金额是本期应付总额`}
         ]}]
       })
@@ -1656,21 +1214,18 @@ async function handleStatementUpload(event) {
 
 function renderStatementReview() {
   const listEl = document.getElementById('statement-list');
-  listEl.innerHTML = pendingStatementTxns.map((t,i)=>{
-    const dup = findDupBill(t.amount, t.date);
-    t.__dup = !!dup;
-    return `
-    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);${dup?'background:var(--warn-bg);border-radius:8px;padding-left:6px;padding-right:6px;':''}">
-      <input type="checkbox" id="stx-${i}" ${dup?'':'checked'} style="flex-shrink:0;width:16px;height:16px;" />
+  listEl.innerHTML = pendingStatementTxns.map((t,i)=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);">
+      <input type="checkbox" id="stx-${i}" checked style="flex-shrink:0;width:16px;height:16px;" />
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.merchant||'未知商家'}</div>
-        <div style="font-size:11px;color:var(--text3);">${t.date||'日期未知'}${dup?` · <span style="color:var(--warn-text);font-weight:600;">疑似重复：${dup.date} ${dup.note||dup.cat}</span>`:''}</div>
+        <div style="font-size:11px;color:var(--text3);">${t.date||'日期未知'}</div>
       </div>
       <select id="stx-cat-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:90px;">
         ${FIN_CATS.map(c=>`<option ${c===t.cat?'selected':''}>${c}</option>`).join('')}
       </select>
-      <div style="font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;">$${Number(t.amount||0).toFixed(2)}${Number(t.hst)>0?`<div style="font-size:10px;font-weight:400;color:var(--text3);text-align:right;">HST $${Number(t.hst).toFixed(2)}</div>`:''}</div>
-    </div>`;}).join('');
+      <div style="font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;">$${Number(t.amount||0).toFixed(2)}</div>
+    </div>`).join('');
   const total = pendingStatementTxns.reduce((s,t)=>s+Number(t.amount||0),0);
   document.getElementById('statement-confirm-btn').textContent = `添加 ${pendingStatementTxns.length} 笔（共 $${total.toFixed(2)}）`;
   document.getElementById('statement-modal').classList.add('open');
@@ -1690,22 +1245,16 @@ function confirmStatementImport() {
       cat: catSel ? catSel.value : (t.cat||'其他'),
       note: t.merchant || '',
       who: 'Jin',
-      ledger: document.getElementById('statement-ledger').value || '个人',
-      hst: Number(t.hst) || 0,
       receiptId: '',
       created: new Date().toISOString()
     });
     added++;
   });
-  // 记录本批次供 AI 分析
-  window.lastImportBatch = appState.bills.slice(-added);
   pendingStatementTxns = [];
   document.getElementById('statement-modal').classList.remove('open');
   saveAndSync();
   renderFinance();
-  const banner = document.getElementById('fin-import-banner');
-  document.getElementById('fin-import-banner-text').textContent = `✅ 已添加 ${added} 笔账单`;
-  banner.style.display = 'flex';
+  alert(`✅ 已添加 ${added} 笔账单`);
 }
 
 document.querySelectorAll('.modal-wrap').forEach(m=>{
@@ -1721,81 +1270,7 @@ function getApiKey(){return localStorage.getItem('anthropic_api_key')||'';}
 function setApiKey(k){localStorage.setItem('anthropic_api_key',k);}
 let aiHistory = [];
 
-// 财务模块专属 AI 提示词
-function buildFinancePrompt() {
-  const today = new Date();
-  const pad = n=>String(n).padStart(2,'0');
-  const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
-  const curMonth = todayStr.slice(0,7);
-  const bills = appState.bills || [];
-
-  // 近6个月分类汇总表（用于趋势/异常分析）
-  const months = [];
-  for(let i=5;i>=0;i--) {
-    const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
-    months.push(`${d.getFullYear()}-${pad(d.getMonth()+1)}`);
-  }
-  let trendTable = '月份 | ' + FIN_CATS.join(' | ') + ' | 合计\n';
-  months.forEach(mo => {
-    const moBills = bills.filter(b=>(b.date||'').startsWith(mo));
-    const row = FIN_CATS.map(c => moBills.filter(b=>b.cat===c).reduce((s,b)=>s+Number(b.amount||0),0).toFixed(0));
-    const tot = moBills.reduce((s,b)=>s+Number(b.amount||0),0).toFixed(0);
-    trendTable += mo + ' | ' + row.join(' | ') + ' | ' + tot + '\n';
-  });
-
-  // 本月账单明细（最多120条）
-  const curBills = bills.filter(b=>(b.date||'').startsWith(curMonth)).slice(0,120);
-  let detail = '';
-  curBills.forEach(b => {
-    detail += `- ID:${b.id} [${b.date}] ${b.note||b.cat} $${Number(b.amount).toFixed(2)} 类别:${b.cat} 账本:${b.ledger||'未设'} ${b.hst?'HST:$'+Number(b.hst).toFixed(2):''} 记账:${b.who||''}\n`;
-  });
-
-  // 最近一次导入批次
-  let importDetail = '';
-  if(window.lastImportBatch && window.lastImportBatch.length) {
-    window.lastImportBatch.slice(0,80).forEach(b => {
-      importDetail += `- [${b.date}] ${b.note||b.cat} $${Number(b.amount).toFixed(2)} 类别:${b.cat}\n`;
-    });
-  }
-
-  return `你是Jin家的财务分析AI，今天是${todayStr}。你能精确分析家庭账单数据，也能直接操作账单。
-
-【近6个月分类支出汇总表（单位$）】
-${trendTable}
-【本月（${curMonth}）账单明细，共${curBills.length}条】
-${detail||'（本月暂无账单）'}
-${importDetail ? '【最近一次导入的信用卡账单批次，共'+window.lastImportBatch.length+'笔】\n'+importDetail : ''}
-【本月工作日志（Green Ring 服务记录）】
-${(()=>{const logs=(appState.workLogs||[]).filter(w=>(w.date||'').startsWith(curMonth));if(!logs.length)return '（本月暂无）';const gh=logs.filter(w=>w.client==='Guoqi Researches Ltd').reduce((s,w)=>s+Number(w.hours||0),0);return '为Guoqi Researches Ltd合计'+gh+'小时\n'+logs.slice(0,40).map(w=>`- [${w.date}] ${w.type} ${w.hours}h ${w.desc}（${w.client}）`).join('\n');})()}
-
-【账本说明】
-个人(不抵税) / Guoqi Research(公司26.5%) / Green Ring(公司12.2%) / 出租房45和出租房15(50/50归Qi和Jin，抵租金收入) / 住宅共用(Guoqi抵30%) / 待定(待审查)
-
-【你的能力】
-直接操作账单，在回复末尾用 <ACTION>JSON</ACTION> 格式：
-记一笔：{"op":"addBill","amount":85.50,"date":"2026-06-08","cat":"食品杂货","note":"Costco","who":"Jin","ledger":"个人"}
-删一笔：{"op":"deleteBill","id":"账单ID"}
-多个操作用数组。
-
-【CRA合规审查规则】
-- 享受型个人支出（泳池维护、景观美化、家庭食品、家人衣物、个人娱乐）不得进任何公司账本。公司支付股东个人开销=股东受益(s.15(1))：公司抵扣被剔除+股东个人按53.53%补税，双重损失，风险等级最高
-- 住宅共用账本只放全屋共担费用：房贷利息、地税、房屋保险、水电气、网络、影响全屋的一般维修；泳池/园艺景观等享受型维护不属于
-- 商务餐饮只能抵50%，且需有商业目的；纯家庭聚餐进个人
-- 出租房账本：只放与该出租房直接相关的费用；区分维修（当年费用）和资本性改进（屋顶、翻新等，标记给会计师做CCA判断）
-- 大额设备(>$500)提示属资本支出
-- 工资、分红、股东往来不是费用账单，提示用户这些由会计师处理
-- 审查发现可疑分类时，逐笔列出：账单内容、问题所在、风险说明、建议账本
-
-【分析规则】
-- 统计计算必须精确，基于上面的真实数据，不要估算
-- 主动发现异常：某类别环比变化超过30%且金额超过$100时指出来
-- 分析消费主题时找模式（如多笔餐饮+酒店+机票=旅行相关）
-- 涉及税务抵扣建议时遵循：费用报在实际发生处；出租房抵扣价值(~37%) > 公司(26.5%) > 住宅共用比例
-- 用中文，简洁专业，重点数字用粗体`;
-}
-
 function buildSystemPrompt() {
-  if(currentModule === 'finance') return buildFinancePrompt();
   const today = new Date();
   // 用本地时间生成日期字符串，避免UTC偏差
   const pad = n=>String(n).padStart(2,'0');
@@ -1928,7 +1403,7 @@ function parseAndExecuteActions(text) {
         appState.appts=appState.appts.filter(a=>a.id!==action.id);
       } else if(action.op==='addBill') {
         if(!appState.bills) appState.bills=[];
-        appState.bills.push({id:uid(), amount:Number(action.amount)||0, date:action.date||new Date().toLocaleDateString('en-CA'), cat:action.cat||'其他', note:action.note||'', who:action.who||'Jin', ledger:action.ledger||'个人', hst:Number(action.hst)||0, receiptId:'', created:new Date().toISOString()});
+        appState.bills.push({id:uid(), amount:Number(action.amount)||0, date:action.date||new Date().toLocaleDateString('en-CA'), cat:action.cat||'其他', note:action.note||'', who:action.who||'', receiptId:'', created:new Date().toISOString()});
       } else if(action.op==='deleteBill') {
         appState.bills=(appState.bills||[]).filter(b=>b.id!==action.id);
       }
@@ -2006,41 +1481,11 @@ async function sendAIMessage() {
   input.focus();
 }
 
-function aiAnalyzeImport() {
-  document.getElementById('fin-import-banner').style.display = 'none';
-  showPage('ai');
-  const n = (window.lastImportBatch||[]).length;
-  document.getElementById('ai-input').value = `请分析我刚导入的这批信用卡账单（共${n}笔）：1) 总额和分类占比 2) 有没有共同主题（比如某次旅行、某个项目）3) 和近几个月相比有什么异常或值得注意的趋势`;
-  sendAIMessage();
-}
-
-// 根据模块切换 AI 快捷按钮
-function updateAIQuickButtons() {
-  const el = document.getElementById('ai-quick-btns');
-  if(!el) return;
-  if(currentModule === 'finance') {
-    el.innerHTML = `
-      <button class="btn btn-sm btn-primary" onclick="aiQuickAction('fin-month')">📊 本月消费分析</button>
-      <button class="btn btn-sm" onclick="aiQuickAction('fin-trend')">📈 异常与趋势</button>
-      <button class="btn btn-sm" onclick="aiQuickAction('fin-big')">💸 找大额支出</button>
-      <button class="btn btn-sm" onclick="aiQuickAction('fin-audit')">🔍 合规审查</button>`;
-  } else {
-    el.innerHTML = `
-      <button class="btn btn-sm btn-primary" onclick="aiQuickAction('briefing')">📋 生成今日简报</button>
-      <button class="btn btn-sm" onclick="aiQuickAction('schedule')">📅 帮我安排任务</button>
-      <button class="btn btn-sm" onclick="aiQuickAction('urgent')">🔴 最紧急的事</button>`;
-  }
-}
-
 async function aiQuickAction(type) {
   let msg = '';
   if(type==='briefing') msg = '请给我生成今日工作简报，分析所有任务的优先级，并给出今天具体应该做哪些事。';
   else if(type==='schedule') msg = '请根据截止日期和优先级，帮我把所有未完成任务合理安排到未来几天，给出一个每天的行动计划。';
   else if(type==='urgent') msg = '现在最紧急的3件事是什么？请直接告诉我，并给出每件事今天可以采取的第一步行动。';
-  else if(type==='fin-month') msg = '请分析本月消费：总额、分类占比、和上月对比，有什么值得注意的？';
-  else if(type==='fin-trend') msg = '请检查近6个月的支出趋势，哪些类别有异常波动（环比变化大）？给出可能的原因猜测和建议。';
-  else if(type==='fin-big') msg = '列出本月金额最大的10笔支出，并标注哪些可能可以抵税（按账本归属规则）。';
-  else if(type==='fin-audit') msg = '请按CRA合规规则审查本月所有账单的账本归类，逐笔指出有问题或可疑的分类：说明问题、风险（特别是股东受益风险）、建议改到哪个账本。同时检查「待定」账本里的账单并给出归属建议。';
 
   document.getElementById('ai-input').value = msg;
   await sendAIMessage();
@@ -2101,64 +1546,11 @@ function clearAIChat() {
 </script>
 
 <!-- API Key 设置 Modal -->
-<!-- 收据单项 Modal -->
-<div class="modal-wrap" id="receipt-items-modal">
-  <div class="modal" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;">
-    <div class="modal-title">🧾 收据单项分账</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;" id="ri-summary"></p>
-    <div id="ri-list" style="flex:1;overflow-y:auto;min-height:100px;max-height:50vh;"></div>
-    <div class="modal-actions" style="margin-top:12px;">
-      <button class="btn" onclick="riFallbackSingle()">整单记一笔</button>
-      <button class="btn btn-primary" onclick="confirmReceiptItems()">按账本分组入账</button>
-    </div>
-  </div>
-</div>
-
-<!-- 工作日志导出 Modal -->
-<div class="modal-wrap" id="wl-export-modal">
-  <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
-    <div class="modal-title">📋 月度服务工作汇总</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">复制以下内容，作为当月 invoice 的附件或留档。</p>
-    <textarea id="wl-export-text" readonly style="flex:1;min-height:280px;font-size:12px;font-family:monospace;padding:10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);white-space:pre;overflow:auto;"></textarea>
-    <div class="modal-actions" style="margin-top:12px;">
-      <button class="btn" onclick="document.getElementById('wl-export-modal').classList.remove('open')">关闭</button>
-      <button class="btn btn-primary" onclick="wlCopyExport()">复制全文</button>
-    </div>
-  </div>
-</div>
-
-<!-- 批量账本 Modal -->
-<div class="modal-wrap" id="ledger-batch-modal">
-  <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
-    <div class="modal-title">🏷 批量设置账本</div>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <label style="font-size:12px;color:var(--text2);flex-shrink:0;">全部设为：</label>
-      <select id="lb-master" onchange="lbApplyMaster()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
-        <option value="">— 选择 —</option>
-        <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
-        <option>出租房45</option><option>出租房15</option><option>住宅共用</option><option>待定</option>
-      </select>
-    </div>
-    <div id="lb-list" style="flex:1;overflow-y:auto;min-height:80px;max-height:50vh;"></div>
-    <div class="modal-actions" style="margin-top:12px;">
-      <button class="btn" onclick="document.getElementById('ledger-batch-modal').classList.remove('open')">取消</button>
-      <button class="btn btn-primary" onclick="saveLedgerBatch()">保存</button>
-    </div>
-  </div>
-</div>
-
 <!-- PDF账单审核 Modal -->
 <div class="modal-wrap" id="statement-modal">
   <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
     <div class="modal-title">📄 账单识别结果</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">请核对以下交易，取消勾选不需要的，确认后批量记账。疑似重复的交易已自动取消勾选。</p>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <label style="font-size:12px;color:var(--text2);flex-shrink:0;">本批账本：</label>
-      <select id="statement-ledger" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
-        <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
-        <option>出租房45</option><option>出租房15</option><option>住宅共用</option><option>待定</option>
-      </select>
-    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">请核对以下交易，取消勾选不需要的，确认后批量记账。</p>
     <div id="statement-list" style="flex:1;overflow-y:auto;min-height:100px;max-height:50vh;"></div>
     <div class="modal-actions" style="margin-top:12px;">
       <button class="btn" onclick="document.getElementById('statement-modal').classList.remove('open')">取消</button>
@@ -2185,25 +1577,13 @@ function clearAIChat() {
           <option>食品杂货</option><option>餐饮</option><option>水电气</option>
           <option>网络通讯</option><option>房贷/房租</option><option>保险</option>
           <option>汽车/交通</option><option>教育</option><option>医疗</option>
-          <option>购物</option><option>娱乐</option><option>维修</option><option>订阅</option><option>其他</option>
+          <option>购物</option><option>娱乐</option><option>其他</option>
         </select>
       </div>
       <div style="flex:1"><label class="fl">记账人</label>
         <select id="b-who"></select>
       </div>
     </div>
-    <div class="form-row">
-      <div style="flex:1"><label class="fl">账本</label>
-        <select id="b-ledger">
-          <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
-          <option>出租房45</option><option>出租房15</option><option>住宅共用</option><option>待定</option>
-        </select>
-      </div>
-      <div style="flex:1"><label class="fl">HST/GST ($)</label>
-        <input type="number" id="b-hst" placeholder="0.00" step="0.01" min="0" />
-      </div>
-    </div>
-    <div id="b-dup-warning" style="display:none;background:var(--warn-bg);color:var(--warn-text);border-radius:8px;padding:8px 10px;font-size:12px;margin-bottom:8px;"></div>
     <div class="form-row"><label class="fl" style="flex-basis:100%">商家/备注</label>
       <input type="text" id="b-note" placeholder="比如 Costco、Enbridge…" style="flex-basis:100%" />
     </div>
