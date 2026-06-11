@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.1 · 2026-06-11</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.2 · 2026-06-11</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -202,6 +202,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
     <button class="nav-tab" data-page="members" onclick="showPage('members')">成员</button>
     <button class="nav-tab" data-page="ai" onclick="showPage('ai')">🤖 AI</button>
     <button class="nav-tab" data-page="finance" onclick="showPage('finance')">💰 财务</button>
+    <button class="nav-tab" data-page="worklog" onclick="showPage('worklog')">📝 工作日志</button>
   </div>
   <div class="nav-right">
     <button class="sync-btn" id="sync-btn" onclick="syncToDrive()">
@@ -369,6 +370,52 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
     </div>
   </div>
 
+  <!-- 工作日志 -->
+  <div class="page" id="page-worklog">
+    <div class="sec-header">
+      <div><div class="sec-title">工作日志</div><div class="sec-sub">Green Ring 服务记录 · CRA 审核凭证 · 当天记录最可信</div></div>
+    </div>
+
+    <!-- 快速记录 -->
+    <div class="card" style="margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">⏱ 记一条（30秒）</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+        <input type="date" id="wl-date" style="font-size:13px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);" />
+        <select id="wl-type" style="font-size:13px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);">
+          <option>内容投放</option><option>客户开发</option><option>网站项目</option>
+          <option>设计制作</option><option>客服</option><option>其他</option>
+        </select>
+        <input type="number" id="wl-hours" placeholder="小时" step="0.5" min="0" style="width:70px;font-size:13px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);" />
+        <select id="wl-client" style="font-size:13px;padding:6px 8px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);">
+          <option>Guoqi Researches Ltd</option><option>其他客户</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:6px;">
+        <input type="text" id="wl-desc" placeholder="具体做了什么，比如：撰写并发布2篇LinkedIn内容介绍research服务" style="flex:1;font-size:13px;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);" onkeydown="if(event.key==='Enter')addWorkLog()" />
+        <button class="btn btn-primary" onclick="addWorkLog()">添加</button>
+      </div>
+    </div>
+
+    <!-- 月度汇总 -->
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;" id="wl-month-label">本月汇总</div>
+        <div style="display:flex;gap:4px;">
+          <button class="btn btn-sm" onclick="wlChangeMonth(-1)">←</button>
+          <button class="btn btn-sm" onclick="wlChangeMonth(1)">→</button>
+          <button class="btn btn-sm btn-primary" onclick="wlExportMonth()">📋 生成月度汇总</button>
+        </div>
+      </div>
+      <div id="wl-summary"></div>
+    </div>
+
+    <!-- 日志列表 -->
+    <div class="card">
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">本月明细</div>
+      <div id="wl-list"></div>
+    </div>
+  </div>
+
   <!-- 健康（占位） -->
   <div class="page" id="page-health">
     <div style="text-align:center;padding:60px 20px;color:var(--text3);">
@@ -477,7 +524,7 @@ const MEMBERS=[
 // ── State ─────────────────────────────────────────
 let accessToken = null;
 let driveFileId = null;
-let appState = { tasks:[], appts:[], memberNotes:{}, bills:[] };
+let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[] };
 let currentFilter = 'all';
 let selectedMember = null;
 const pickerSel = {};
@@ -600,6 +647,7 @@ async function loadFromDrive() {
         const data = JSON.parse(text);
         if(data.tasks !== undefined) appState = data;
         if(!appState.bills) appState.bills = [];
+        if(!appState.workLogs) appState.workLogs = [];
         appState.bills.forEach(b=>{ if(b.ledger==='出租房1') b.ledger='出租房45'; if(b.ledger==='出租房2') b.ledger='出租房15'; });
       }
     }
@@ -691,7 +739,7 @@ function resetPicker(cid) { pickerSel[cid]=new Set(); buildPicker(cid); }
 // ── 模块导航 ──────────────────────────────────────
 const MODULE_TABS = {
   schedule: ['tasks','appts','all-tasks','members','ai'],
-  finance:  ['finance','ai'],
+  finance:  ['finance','worklog','ai'],
   health:   [],
   docs:     []
 };
@@ -744,10 +792,11 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const idx={tasks:0,appts:1,'all-tasks':2,members:3,ai:4,finance:5};
+  const idx={tasks:0,appts:1,'all-tasks':2,members:3,ai:4,finance:5,worklog:6};
   if(idx[id]!==undefined) document.querySelectorAll('.nav-tab')[idx[id]].classList.add('active');
   render();
   if(id==='finance') renderFinance();
+  if(id==='worklog') renderWorkLog();
 }
 
 // ── Render ────────────────────────────────────────
@@ -1100,6 +1149,133 @@ function renderFinance() {
           <button onclick="deleteBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">🗑</button>
         </div>`;
       }).join('');
+}
+
+// ── 工作日志（Green Ring 服务记录）──────────────────
+const WL_CLIENT_MAIN = 'Guoqi Researches Ltd';
+let wlViewMonth = null;
+
+function wlCurrentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function wlChangeMonth(delta) {
+  const [y,m] = (wlViewMonth||wlCurrentMonth()).split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  wlViewMonth = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+  renderWorkLog();
+}
+
+function addWorkLog() {
+  const date = document.getElementById('wl-date').value;
+  const hours = parseFloat(document.getElementById('wl-hours').value);
+  const desc = document.getElementById('wl-desc').value.trim();
+  if(!date) { alert('请选择日期'); return; }
+  if(!hours || hours <= 0) { alert('请输入工时'); return; }
+  if(!desc) { alert('请填写具体工作内容——越具体，CRA审核时越有说服力'); return; }
+  if(!appState.workLogs) appState.workLogs = [];
+  appState.workLogs.push({
+    id: uid(),
+    date,
+    type: document.getElementById('wl-type').value,
+    hours,
+    desc,
+    client: document.getElementById('wl-client').value,
+    created: new Date().toISOString()
+  });
+  document.getElementById('wl-hours').value = '';
+  document.getElementById('wl-desc').value = '';
+  saveAndSync();
+  renderWorkLog();
+}
+
+function deleteWorkLog(id) {
+  if(!confirm('确定删除这条工作记录吗？')) return;
+  appState.workLogs = (appState.workLogs||[]).filter(w=>w.id!==id);
+  saveAndSync();
+  renderWorkLog();
+}
+
+function renderWorkLog() {
+  const page = document.getElementById('page-worklog');
+  if(!page || !page.classList.contains('active')) return;
+  // 日期默认今天
+  const dEl = document.getElementById('wl-date');
+  if(dEl && !dEl.value) dEl.value = new Date().toLocaleDateString('en-CA');
+
+  const month = wlViewMonth || wlCurrentMonth();
+  const [y,m] = month.split('-');
+  document.getElementById('wl-month-label').textContent = `${y}年${Number(m)}月汇总`;
+
+  const logs = (appState.workLogs||[]).filter(w=>(w.date||'').startsWith(month));
+  const guoqiLogs = logs.filter(w=>w.client===WL_CLIENT_MAIN);
+  const otherLogs = logs.filter(w=>w.client!==WL_CLIENT_MAIN);
+  const gh = guoqiLogs.reduce((s,w)=>s+Number(w.hours||0),0);
+  const oh = otherLogs.reduce((s,w)=>s+Number(w.hours||0),0);
+
+  // 按类型分解（仅 Guoqi）
+  const byType = {};
+  guoqiLogs.forEach(w=>{ byType[w.type]=(byType[w.type]||0)+Number(w.hours||0); });
+  const typeStr = Object.entries(byType).sort((a,b)=>b[1]-a[1])
+    .map(([t,h])=>`${t} ${h}h`).join(' · ') || '—';
+
+  document.getElementById('wl-summary').innerHTML = `
+    <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;">
+      <div><div style="font-size:22px;font-weight:700;color:var(--text);">${gh}<span style="font-size:13px;font-weight:400;"> 小时</span></div>
+        <div style="font-size:11px;color:var(--text3);">为 ${WL_CLIENT_MAIN}</div></div>
+      ${oh>0?`<div><div style="font-size:22px;font-weight:700;color:var(--text3);">${oh}<span style="font-size:13px;font-weight:400;"> 小时</span></div>
+        <div style="font-size:11px;color:var(--text3);">其他客户</div></div>`:''}
+    </div>
+    <div style="font-size:12px;color:var(--text2);">${typeStr}</div>`;
+
+  const sorted = [...logs].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  document.getElementById('wl-list').innerHTML = sorted.length===0
+    ? '<div style="font-size:13px;color:var(--text3);">本月还没有记录——每天30秒，年底安心</div>'
+    : sorted.map(w=>`
+      <div style="display:flex;align-items:flex-start;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);">
+        <div style="flex-shrink:0;font-size:11px;color:var(--text3);width:42px;padding-top:2px;">${w.date.slice(5)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;color:var(--text);">${esc(w.desc)}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${w.type} · ${w.hours}h${w.client!==WL_CLIENT_MAIN?' · <span style=\"color:var(--warn-text);\">其他客户</span>':''}</div>
+        </div>
+        <button onclick="deleteWorkLog('${w.id}')" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--text3);padding:2px;">🗑</button>
+      </div>`).join('');
+}
+
+function wlExportMonth() {
+  const month = wlViewMonth || wlCurrentMonth();
+  const [y,m] = month.split('-');
+  const logs = (appState.workLogs||[]).filter(w=>(w.date||'').startsWith(month) && w.client===WL_CLIENT_MAIN)
+    .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  if(logs.length===0) { alert('本月没有为 '+WL_CLIENT_MAIN+' 的工作记录'); return; }
+  const total = logs.reduce((s,w)=>s+Number(w.hours||0),0);
+  const byType = {};
+  logs.forEach(w=>{ byType[w.type]=(byType[w.type]||0)+Number(w.hours||0); });
+
+  let txt = `Green Ring Communications — 月度服务工作记录\n`;
+  txt += `Service Work Log\n`;
+  txt += `══════════════════════════════════\n`;
+  txt += `服务对象 / Client: ${WL_CLIENT_MAIN}\n`;
+  txt += `期间 / Period: ${y}年${Number(m)}月 (${month})\n`;
+  txt += `合计工时 / Total Hours: ${total} 小时\n\n`;
+  txt += `按类型 / By Category:\n`;
+  Object.entries(byType).sort((a,b)=>b[1]-a[1]).forEach(([t,h])=>{ txt += `  ${t}: ${h} 小时\n`; });
+  txt += `\n工作明细 / Details:\n`;
+  txt += `──────────────────────────────────\n`;
+  logs.forEach(w=>{ txt += `${w.date}  [${w.type}] ${w.hours}h\n  ${w.desc}\n`; });
+  txt += `──────────────────────────────────\n`;
+  txt += `本记录由家庭助手系统按日同期生成 / Contemporaneous records\n`;
+  txt += `导出时间 / Exported: ${new Date().toLocaleString('en-CA')}\n`;
+
+  document.getElementById('wl-export-text').value = txt;
+  document.getElementById('wl-export-modal').classList.add('open');
+}
+
+function wlCopyExport() {
+  const ta = document.getElementById('wl-export-text');
+  ta.select();
+  navigator.clipboard.writeText(ta.value).then(()=>alert('✅ 已复制'), ()=>{ document.execCommand('copy'); alert('✅ 已复制'); });
 }
 
 // ── 批量设置账本 ──────────────────────────────────
@@ -1503,6 +1679,9 @@ ${trendTable}
 【本月（${curMonth}）账单明细，共${curBills.length}条】
 ${detail||'（本月暂无账单）'}
 ${importDetail ? '【最近一次导入的信用卡账单批次，共'+window.lastImportBatch.length+'笔】\n'+importDetail : ''}
+【本月工作日志（Green Ring 服务记录）】
+${(()=>{const logs=(appState.workLogs||[]).filter(w=>(w.date||'').startsWith(curMonth));if(!logs.length)return '（本月暂无）';const gh=logs.filter(w=>w.client==='Guoqi Researches Ltd').reduce((s,w)=>s+Number(w.hours||0),0);return '为Guoqi Researches Ltd合计'+gh+'小时\n'+logs.slice(0,40).map(w=>`- [${w.date}] ${w.type} ${w.hours}h ${w.desc}（${w.client}）`).join('\n');})()}
+
 【账本说明】
 个人(不抵税) / Guoqi Research(公司26.5%) / Green Ring(公司12.2%) / 出租房45和出租房15(50/50归Qi和Jin，抵租金收入) / 住宅共用(Guoqi抵30%) / 待定(待审查)
 
@@ -1825,6 +2004,19 @@ function clearAIChat() {
 </script>
 
 <!-- API Key 设置 Modal -->
+<!-- 工作日志导出 Modal -->
+<div class="modal-wrap" id="wl-export-modal">
+  <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="modal-title">📋 月度服务工作汇总</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">复制以下内容，作为当月 invoice 的附件或留档。</p>
+    <textarea id="wl-export-text" readonly style="flex:1;min-height:280px;font-size:12px;font-family:monospace;padding:10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);white-space:pre;overflow:auto;"></textarea>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn" onclick="document.getElementById('wl-export-modal').classList.remove('open')">关闭</button>
+      <button class="btn btn-primary" onclick="wlCopyExport()">复制全文</button>
+    </div>
+  </div>
+</div>
+
 <!-- 批量账本 Modal -->
 <div class="modal-wrap" id="ledger-batch-modal">
   <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
