@@ -168,6 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.1 · 2026-06-11</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -297,7 +298,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
         <div class="ai-msg ai-msg-system"><div class="ai-msg-bubble">👋 你好！我是你的家庭AI秘书。点击「生成今日简报」开始，或直接告诉我你想做什么。</div></div>
       </div>
       <div style="border-top:0.5px solid var(--border);padding:10px 12px;">
-        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+        <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;" id="ai-quick-btns">
           <button class="btn btn-sm btn-primary" onclick="aiQuickAction('briefing')">📋 生成今日简报</button>
           <button class="btn btn-sm" onclick="aiQuickAction('schedule')">📅 帮我安排任务</button>
           <button class="btn btn-sm" onclick="aiQuickAction('urgent')">🔴 最紧急的事</button>
@@ -331,6 +332,10 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
 
     <div id="receipt-processing" style="display:none;background:var(--accent-bg);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--accent-text);">
       🤖 AI 正在识别收据内容…
+    </div>
+    <div id="fin-import-banner" style="display:none;background:var(--success-bg);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--success-text);align-items:center;justify-content:space-between;gap:8px;">
+      <span id="fin-import-banner-text"></span>
+      <button class="btn btn-sm btn-primary" onclick="aiAnalyzeImport()" style="flex-shrink:0;">🤖 AI 分析本次导入</button>
     </div>
 
     <!-- 本月统计 -->
@@ -595,6 +600,7 @@ async function loadFromDrive() {
         const data = JSON.parse(text);
         if(data.tasks !== undefined) appState = data;
         if(!appState.bills) appState.bills = [];
+        appState.bills.forEach(b=>{ if(b.ledger==='出租房1') b.ledger='出租房45'; if(b.ledger==='出租房2') b.ledger='出租房15'; });
       }
     }
     setSyncStatus('ok');
@@ -726,6 +732,7 @@ function enterModule(m) {
   document.querySelectorAll('.nav-tab').forEach(t => {
     t.style.display = tabs.includes(t.dataset.page) ? '' : 'none';
   });
+  updateAIQuickButtons();
   if(m === 'schedule') showPage('tasks');
   else if(m === 'finance') showPage('finance');
   else if(m === 'health') showPage('health');
@@ -987,10 +994,10 @@ function saveMemberNote(memberId) {
 }
 
 // ── 财务模块 ──────────────────────────────────────
-const FIN_CATS = ['食品杂货','餐饮','水电气','网络通讯','房贷/房租','保险','汽车/交通','教育','医疗','购物','娱乐','其他'];
-const FIN_CAT_COLORS = {'食品杂货':'#0F6E56','餐饮':'#BA7517','水电气':'#185FA5','网络通讯':'#534AB7','房贷/房租':'#993C1D','保险':'#854F0B','汽车/交通':'#D4537E','教育':'#639922','医疗':'#C2410C','购物':'#7C3AED','娱乐':'#0891B2','其他':'#6B7280'};
-const FIN_LEDGERS = ['个人','Guoqi Research','Green Ring','出租房1','出租房2','住宅共用'];
-const FIN_LEDGER_COLORS = {'个人':'#6B7280','Guoqi Research':'#185FA5','Green Ring':'#0F6E56','出租房1':'#BA7517','出租房2':'#854F0B','住宅共用':'#534AB7'};
+const FIN_CATS = ['食品杂货','餐饮','水电气','网络通讯','房贷/房租','保险','汽车/交通','教育','医疗','购物','娱乐','维修','订阅','其他'];
+const FIN_CAT_COLORS = {'食品杂货':'#0F6E56','餐饮':'#BA7517','水电气':'#185FA5','网络通讯':'#534AB7','房贷/房租':'#993C1D','保险':'#854F0B','汽车/交通':'#D4537E','教育':'#639922','医疗':'#C2410C','购物':'#7C3AED','娱乐':'#0891B2','维修':'#B45309','订阅':'#5B21B6','其他':'#6B7280'};
+const FIN_LEDGERS = ['个人','Guoqi Research','Green Ring','出租房45','出租房15','住宅共用','待定'];
+const FIN_LEDGER_COLORS = {'个人':'#6B7280','Guoqi Research':'#185FA5','Green Ring':'#0F6E56','出租房45':'#BA7517','出租房15':'#854F0B','住宅共用':'#534AB7','待定':'#DC2626'};
 let finViewMonth = null; // 'YYYY-MM' being viewed
 
 function finCurrentMonth() {
@@ -1428,11 +1435,15 @@ function confirmStatementImport() {
     });
     added++;
   });
+  // 记录本批次供 AI 分析
+  window.lastImportBatch = appState.bills.slice(-added);
   pendingStatementTxns = [];
   document.getElementById('statement-modal').classList.remove('open');
   saveAndSync();
   renderFinance();
-  alert(`✅ 已添加 ${added} 笔账单`);
+  const banner = document.getElementById('fin-import-banner');
+  document.getElementById('fin-import-banner-text').textContent = `✅ 已添加 ${added} 笔账单`;
+  banner.style.display = 'flex';
 }
 
 document.querySelectorAll('.modal-wrap').forEach(m=>{
@@ -1448,7 +1459,69 @@ function getApiKey(){return localStorage.getItem('anthropic_api_key')||'';}
 function setApiKey(k){localStorage.setItem('anthropic_api_key',k);}
 let aiHistory = [];
 
+// 财务模块专属 AI 提示词
+function buildFinancePrompt() {
+  const today = new Date();
+  const pad = n=>String(n).padStart(2,'0');
+  const todayStr = `${today.getFullYear()}-${pad(today.getMonth()+1)}-${pad(today.getDate())}`;
+  const curMonth = todayStr.slice(0,7);
+  const bills = appState.bills || [];
+
+  // 近6个月分类汇总表（用于趋势/异常分析）
+  const months = [];
+  for(let i=5;i>=0;i--) {
+    const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
+    months.push(`${d.getFullYear()}-${pad(d.getMonth()+1)}`);
+  }
+  let trendTable = '月份 | ' + FIN_CATS.join(' | ') + ' | 合计\n';
+  months.forEach(mo => {
+    const moBills = bills.filter(b=>(b.date||'').startsWith(mo));
+    const row = FIN_CATS.map(c => moBills.filter(b=>b.cat===c).reduce((s,b)=>s+Number(b.amount||0),0).toFixed(0));
+    const tot = moBills.reduce((s,b)=>s+Number(b.amount||0),0).toFixed(0);
+    trendTable += mo + ' | ' + row.join(' | ') + ' | ' + tot + '\n';
+  });
+
+  // 本月账单明细（最多120条）
+  const curBills = bills.filter(b=>(b.date||'').startsWith(curMonth)).slice(0,120);
+  let detail = '';
+  curBills.forEach(b => {
+    detail += `- ID:${b.id} [${b.date}] ${b.note||b.cat} $${Number(b.amount).toFixed(2)} 类别:${b.cat} 账本:${b.ledger||'未设'} ${b.hst?'HST:$'+Number(b.hst).toFixed(2):''} 记账:${b.who||''}\n`;
+  });
+
+  // 最近一次导入批次
+  let importDetail = '';
+  if(window.lastImportBatch && window.lastImportBatch.length) {
+    window.lastImportBatch.slice(0,80).forEach(b => {
+      importDetail += `- [${b.date}] ${b.note||b.cat} $${Number(b.amount).toFixed(2)} 类别:${b.cat}\n`;
+    });
+  }
+
+  return `你是Jin家的财务分析AI，今天是${todayStr}。你能精确分析家庭账单数据，也能直接操作账单。
+
+【近6个月分类支出汇总表（单位$）】
+${trendTable}
+【本月（${curMonth}）账单明细，共${curBills.length}条】
+${detail||'（本月暂无账单）'}
+${importDetail ? '【最近一次导入的信用卡账单批次，共'+window.lastImportBatch.length+'笔】\n'+importDetail : ''}
+【账本说明】
+个人(不抵税) / Guoqi Research(公司26.5%) / Green Ring(公司12.2%) / 出租房45和出租房15(50/50归Qi和Jin，抵租金收入) / 住宅共用(Guoqi抵30%) / 待定(待审查)
+
+【你的能力】
+直接操作账单，在回复末尾用 <ACTION>JSON</ACTION> 格式：
+记一笔：{"op":"addBill","amount":85.50,"date":"2026-06-08","cat":"食品杂货","note":"Costco","who":"Jin","ledger":"个人"}
+删一笔：{"op":"deleteBill","id":"账单ID"}
+多个操作用数组。
+
+【分析规则】
+- 统计计算必须精确，基于上面的真实数据，不要估算
+- 主动发现异常：某类别环比变化超过30%且金额超过$100时指出来
+- 分析消费主题时找模式（如多笔餐饮+酒店+机票=旅行相关）
+- 涉及税务抵扣建议时遵循：费用报在实际发生处；出租房抵扣价值(~37%) > 公司(26.5%) > 住宅共用比例
+- 用中文，简洁专业，重点数字用粗体`;
+}
+
 function buildSystemPrompt() {
+  if(currentModule === 'finance') return buildFinancePrompt();
   const today = new Date();
   // 用本地时间生成日期字符串，避免UTC偏差
   const pad = n=>String(n).padStart(2,'0');
@@ -1659,11 +1732,39 @@ async function sendAIMessage() {
   input.focus();
 }
 
+function aiAnalyzeImport() {
+  document.getElementById('fin-import-banner').style.display = 'none';
+  showPage('ai');
+  const n = (window.lastImportBatch||[]).length;
+  document.getElementById('ai-input').value = `请分析我刚导入的这批信用卡账单（共${n}笔）：1) 总额和分类占比 2) 有没有共同主题（比如某次旅行、某个项目）3) 和近几个月相比有什么异常或值得注意的趋势`;
+  sendAIMessage();
+}
+
+// 根据模块切换 AI 快捷按钮
+function updateAIQuickButtons() {
+  const el = document.getElementById('ai-quick-btns');
+  if(!el) return;
+  if(currentModule === 'finance') {
+    el.innerHTML = `
+      <button class="btn btn-sm btn-primary" onclick="aiQuickAction('fin-month')">📊 本月消费分析</button>
+      <button class="btn btn-sm" onclick="aiQuickAction('fin-trend')">📈 异常与趋势</button>
+      <button class="btn btn-sm" onclick="aiQuickAction('fin-big')">💸 找大额支出</button>`;
+  } else {
+    el.innerHTML = `
+      <button class="btn btn-sm btn-primary" onclick="aiQuickAction('briefing')">📋 生成今日简报</button>
+      <button class="btn btn-sm" onclick="aiQuickAction('schedule')">📅 帮我安排任务</button>
+      <button class="btn btn-sm" onclick="aiQuickAction('urgent')">🔴 最紧急的事</button>`;
+  }
+}
+
 async function aiQuickAction(type) {
   let msg = '';
   if(type==='briefing') msg = '请给我生成今日工作简报，分析所有任务的优先级，并给出今天具体应该做哪些事。';
   else if(type==='schedule') msg = '请根据截止日期和优先级，帮我把所有未完成任务合理安排到未来几天，给出一个每天的行动计划。';
   else if(type==='urgent') msg = '现在最紧急的3件事是什么？请直接告诉我，并给出每件事今天可以采取的第一步行动。';
+  else if(type==='fin-month') msg = '请分析本月消费：总额、分类占比、和上月对比，有什么值得注意的？';
+  else if(type==='fin-trend') msg = '请检查近6个月的支出趋势，哪些类别有异常波动（环比变化大）？给出可能的原因猜测和建议。';
+  else if(type==='fin-big') msg = '列出本月金额最大的10笔支出，并标注哪些可能可以抵税（按账本归属规则）。';
 
   document.getElementById('ai-input').value = msg;
   await sendAIMessage();
@@ -1733,7 +1834,7 @@ function clearAIChat() {
       <select id="lb-master" onchange="lbApplyMaster()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
         <option value="">— 选择 —</option>
         <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
-        <option>出租房1</option><option>出租房2</option><option>住宅共用</option>
+        <option>出租房45</option><option>出租房15</option><option>住宅共用</option><option>待定</option>
       </select>
     </div>
     <div id="lb-list" style="flex:1;overflow-y:auto;min-height:80px;max-height:50vh;"></div>
@@ -1753,7 +1854,7 @@ function clearAIChat() {
       <label style="font-size:12px;color:var(--text2);flex-shrink:0;">本批账本：</label>
       <select id="statement-ledger" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
         <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
-        <option>出租房1</option><option>出租房2</option><option>住宅共用</option>
+        <option>出租房45</option><option>出租房15</option><option>住宅共用</option><option>待定</option>
       </select>
     </div>
     <div id="statement-list" style="flex:1;overflow-y:auto;min-height:100px;max-height:50vh;"></div>
@@ -1782,7 +1883,7 @@ function clearAIChat() {
           <option>食品杂货</option><option>餐饮</option><option>水电气</option>
           <option>网络通讯</option><option>房贷/房租</option><option>保险</option>
           <option>汽车/交通</option><option>教育</option><option>医疗</option>
-          <option>购物</option><option>娱乐</option><option>其他</option>
+          <option>购物</option><option>娱乐</option><option>维修</option><option>订阅</option><option>其他</option>
         </select>
       </div>
       <div style="flex:1"><label class="fl">记账人</label>
@@ -1793,7 +1894,7 @@ function clearAIChat() {
       <div style="flex:1"><label class="fl">账本</label>
         <select id="b-ledger">
           <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
-          <option>出租房1</option><option>出租房2</option><option>住宅共用</option>
+          <option>出租房45</option><option>出租房15</option><option>住宅共用</option><option>待定</option>
         </select>
       </div>
       <div style="flex:1"><label class="fl">HST/GST ($)</label>
