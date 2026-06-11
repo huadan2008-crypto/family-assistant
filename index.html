@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.2 · 2026-06-11</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.3 · 2026-06-11</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -1151,6 +1151,81 @@ function renderFinance() {
       }).join('');
 }
 
+// ── 收据单项分账 ──────────────────────────────────
+let pendingReceipt = null;
+
+function renderReceiptItems() {
+  const { parsed } = pendingReceipt;
+  const items = parsed.items;
+  const itemsTotal = items.reduce((s,it)=>s+Number(it.amount||0),0);
+  document.getElementById('ri-summary').textContent =
+    `${parsed.merchant||'未知商家'} · ${pendingReceipt.billDate} · 收据总额 $${Number(parsed.amount||0).toFixed(2)}（单项合计税前 $${itemsTotal.toFixed(2)}，HST $${Number(parsed.hst||0).toFixed(2)}）· 为不同账本的单项分别选择，相同账本+类别会自动合并`;
+  document.getElementById('ri-list').innerHTML = items.map((it,i)=>`
+    <div style="display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:0.5px solid var(--border);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(it.name||'未知商品')}</div>
+        <div style="font-size:11px;color:var(--text3);">$${Number(it.amount||0).toFixed(2)}${it.taxable?' +HST':''}</div>
+      </div>
+      <select id="ri-cat-${i}" style="font-size:11px;padding:3px 4px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:86px;">
+        ${FIN_CATS.map(c=>`<option ${c===(parsed.cat||'其他')?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <select id="ri-led-${i}" style="font-size:11px;padding:3px 4px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:104px;">
+        ${FIN_LEDGERS.map(l=>`<option ${l==='个人'?'selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>`).join('');
+  document.getElementById('receipt-items-modal').classList.add('open');
+}
+
+function confirmReceiptItems() {
+  const { parsed, billDate, receiptId } = pendingReceipt;
+  const items = parsed.items;
+  // 按 账本+类别 分组
+  const groups = {};
+  items.forEach((it,i)=>{
+    const cat = document.getElementById('ri-cat-'+i).value;
+    const led = document.getElementById('ri-led-'+i).value;
+    const key = led + '|' + cat;
+    if(!groups[key]) groups[key] = { led, cat, pre:0, hst:0, names:[] };
+    const amt = Number(it.amount||0);
+    groups[key].pre += amt;
+    if(it.taxable) groups[key].hst += amt * 0.13;
+    groups[key].names.push(it.name||'');
+  });
+  // HST 校准：按比例缩放使合计等于收据 HST
+  const calcHst = Object.values(groups).reduce((s,g)=>s+g.hst,0);
+  const realHst = Number(parsed.hst||0);
+  const scale = (calcHst > 0 && realHst > 0) ? realHst/calcHst : (realHst>0?0:1);
+  if(!appState.bills) appState.bills = [];
+  let added = 0;
+  Object.values(groups).forEach(g=>{
+    const hst = Math.round(g.hst * (scale||0) * 100)/100;
+    const namesStr = g.names.slice(0,3).join('、') + (g.names.length>3?` 等${g.names.length}项`:'');
+    appState.bills.push({
+      id: uid(), amount: Math.round((g.pre + hst)*100)/100, date: billDate,
+      cat: g.cat, note: `${parsed.merchant||''} - ${namesStr}`,
+      who: 'Jin', ledger: g.led, hst, receiptId: receiptId||'', created: new Date().toISOString()
+    });
+    added++;
+  });
+  pendingReceipt = null;
+  document.getElementById('receipt-items-modal').classList.remove('open');
+  saveAndSync();
+  renderFinance();
+  alert(`✅ 已按账本分组入账 ${added} 笔`);
+}
+
+function riFallbackSingle() {
+  const { parsed, billDate, receiptId } = pendingReceipt;
+  pendingReceipt = null;
+  document.getElementById('receipt-items-modal').classList.remove('open');
+  const dup = findDupBill(parsed.amount, billDate);
+  openBillModal({
+    amount: parsed.amount || '', date: billDate, cat: parsed.cat || '其他',
+    note: parsed.merchant || '', hst: parsed.hst || '', receiptId: receiptId,
+    dupWarning: dup ? `⚠️ 疑似重复：已有 ${dup.date} 「${dup.note||dup.cat}」$${Number(dup.amount).toFixed(2)}` : ''
+  });
+}
+
 // ── 工作日志（Green Ring 服务记录）──────────────────
 const WL_CLIENT_MAIN = 'Guoqi Researches Ltd';
 let wlViewMonth = null;
@@ -1417,9 +1492,10 @@ async function findOrCreateReceiptFolder(yearMonth) {
   return (await cr2.json()).id;
 }
 
-async function uploadReceiptToDrive(base64Data, mimeType, yearMonth) {
+async function uploadReceiptToDrive(base64Data, mimeType, yearMonth, merchant) {
   const folderId = await findOrCreateReceiptFolder(yearMonth);
-  const fileName = `收据_${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}.${mimeType.split('/')[1]==='jpeg'?'jpg':mimeType.split('/')[1]}`;
+  const safeMerchant = (merchant||'').replace(/[\\/:*?"<>|]/g,'').slice(0,30);
+  const fileName = `收据_${yearMonth}_${safeMerchant||'未知商家'}_${Date.now().toString().slice(-6)}.${mimeType.split('/')[1]==='jpeg'?'jpg':mimeType.split('/')[1]}`;
   const boundary = '-------fa' + Date.now();
   const meta = JSON.stringify({name:fileName, parents:[folderId]});
   const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64Data}\r\n--${boundary}--`;
@@ -1465,8 +1541,11 @@ async function handleReceiptUpload(event) {
         messages:[{role:'user', content:[
           {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
           {type:'text', text:`识别这张收据，返回纯JSON（不要任何其他文字、不要markdown）：
-{"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "hst": 收据上标注的HST或GST税额数字（没有就是0）, "cat": "从这些分类中选一个：${FIN_CATS.join('、')}"}
-如果某项看不清就用null。日期看不清就用null。`}
+{"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "hst": 收据上标注的HST或GST税额总数字（没有就是0）, "cat": "从这些分类中选一个：${FIN_CATS.join('、')}", "items": [{"name":"单项商品名","amount":税前价格数字,"taxable":true或false}]}
+规则：
+- items：购物类收据（超市、Costco、Canadian Tire等）逐项列出每个商品；单一服务账单（油费、餐费）items留空数组
+- taxable：该商品是否需缴HST（安省食品杂货大多免税false，日用品电器等为true）；以收据上的税码标记为准
+- 如果某项看不清就用null。日期看不清就用null。`}
         ]}]
       })
     });
@@ -1482,12 +1561,18 @@ async function handleReceiptUpload(event) {
     const billDate = parsed.date || new Date().toLocaleDateString('en-CA');
     const yearMonth = billDate.slice(0,7);
     let receiptId = '';
-    try { receiptId = await uploadReceiptToDrive(base64, file.type, yearMonth); }
+    try { receiptId = await uploadReceiptToDrive(base64, file.type, yearMonth, parsed.merchant); }
     catch(e) { console.error('收据上传失败', e); }
 
     proc.style.display = 'none';
 
     // Open modal with prefilled values for confirmation
+    // 多单项收据 → 分账界面
+    if(Array.isArray(parsed.items) && parsed.items.length > 1) {
+      pendingReceipt = { parsed, billDate, receiptId };
+      renderReceiptItems();
+      return;
+    }
     const dup = findDupBill(parsed.amount, billDate);
     openBillModal({
       amount: parsed.amount || '',
@@ -1540,12 +1625,13 @@ async function handleStatementUpload(event) {
         messages:[{role:'user', content:[
           {type:'document', source:{type:'base64', media_type:'application/pdf', data:base64}},
           {type:'text', text:`这是一份账单/信用卡月结单。提取其中所有消费交易，返回纯JSON数组（不要任何其他文字、不要markdown代码块）：
-[{"date":"YYYY-MM-DD","merchant":"商家名","amount":金额数字,"cat":"分类"}]
+[{"date":"YYYY-MM-DD","merchant":"商家名","amount":金额数字,"hst":HST或GST税额数字,"cat":"分类"}]
 
 规则：
 - 分类必须从这些里选：${FIN_CATS.join('、')}
 - 只提取消费/扣款，跳过还款记录（如 PAYMENT THANK YOU）、退款和利息调整
 - 金额用正数
+- hst：账单上明确标注的HST/GST税额（如电话费、水电账单上的税额行）；信用卡月结单逐笔交易通常不显示税额，此时hst填0
 - 如果是电话费/网费这类单一账单（不是逐笔交易的月结单），就返回一条记录，金额是本期应付总额`}
         ]}]
       })
@@ -1583,7 +1669,7 @@ function renderStatementReview() {
       <select id="stx-cat-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:90px;">
         ${FIN_CATS.map(c=>`<option ${c===t.cat?'selected':''}>${c}</option>`).join('')}
       </select>
-      <div style="font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;">$${Number(t.amount||0).toFixed(2)}</div>
+      <div style="font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;">$${Number(t.amount||0).toFixed(2)}${Number(t.hst)>0?`<div style="font-size:10px;font-weight:400;color:var(--text3);text-align:right;">HST $${Number(t.hst).toFixed(2)}</div>`:''}</div>
     </div>`;}).join('');
   const total = pendingStatementTxns.reduce((s,t)=>s+Number(t.amount||0),0);
   document.getElementById('statement-confirm-btn').textContent = `添加 ${pendingStatementTxns.length} 笔（共 $${total.toFixed(2)}）`;
@@ -1605,7 +1691,7 @@ function confirmStatementImport() {
       note: t.merchant || '',
       who: 'Jin',
       ledger: document.getElementById('statement-ledger').value || '个人',
-      hst: 0,
+      hst: Number(t.hst) || 0,
       receiptId: '',
       created: new Date().toISOString()
     });
@@ -2004,6 +2090,19 @@ function clearAIChat() {
 </script>
 
 <!-- API Key 设置 Modal -->
+<!-- 收据单项 Modal -->
+<div class="modal-wrap" id="receipt-items-modal">
+  <div class="modal" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="modal-title">🧾 收据单项分账</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;" id="ri-summary"></p>
+    <div id="ri-list" style="flex:1;overflow-y:auto;min-height:100px;max-height:50vh;"></div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn" onclick="riFallbackSingle()">整单记一笔</button>
+      <button class="btn btn-primary" onclick="confirmReceiptItems()">按账本分组入账</button>
+    </div>
+  </div>
+</div>
+
 <!-- 工作日志导出 Modal -->
 <div class="modal-wrap" id="wl-export-modal">
   <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
