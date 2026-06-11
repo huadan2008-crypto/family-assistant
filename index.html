@@ -359,7 +359,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
 
     <!-- 账单列表 -->
     <div class="card">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;">本月账单明细</div>
+      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;" id="fin-list-label">本月账单明细</div>
       <div id="fin-bill-list"></div>
     </div>
   </div>
@@ -1072,11 +1072,13 @@ function renderFinance() {
       }).join('')}
     </div>`;
 
-  // Bill list
+  // Bill list（按趋势图选中的分类过滤）
   const listEl = document.getElementById('fin-bill-list');
-  const sortedBills = [...monthBills].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  const listBills = selCat==='__all__' ? monthBills : monthBills.filter(b=>b.cat===selCat);
+  document.getElementById('fin-list-label').textContent = selCat==='__all__' ? '本月账单明细' : `本月账单明细 · ${selCat}`;
+  const sortedBills = [...listBills].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   listEl.innerHTML = sortedBills.length === 0
-    ? '<div style="font-size:13px;color:var(--text3);">点上方按钮添加第一笔账单</div>'
+    ? `<div style="font-size:13px;color:var(--text3);">${selCat==='__all__'?'点上方按钮添加第一笔账单':'本月没有「'+selCat+'」类支出'}</div>`
     : sortedBills.map(b => {
         const c = FIN_CAT_COLORS[b.cat]||'#6B7280';
         const whoName = b.who || '';
