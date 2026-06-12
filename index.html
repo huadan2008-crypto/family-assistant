@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.6 · 2026-06-11</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.7 · 2026-06-11</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -599,7 +599,6 @@ async function onSignedIn() {
   // Load data from Drive
   await loadFromDrive();
   render();
-  showAISchedule();
   goHome();
 }
 
@@ -821,7 +820,7 @@ function enterModule(m) {
     t.style.display = tabs.includes(t.dataset.page) ? '' : 'none';
   });
   updateAIQuickButtons();
-  if(m === 'schedule') showPage('tasks');
+  if(m === 'schedule') { showPage('tasks'); showAISchedule(); }
   else if(m === 'finance') showPage('finance');
   else if(m === 'health') showPage('health');
   else if(m === 'docs') showPage('docs');
