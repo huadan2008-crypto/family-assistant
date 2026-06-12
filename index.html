@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.4 · 2026-06-11</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.5 · 2026-06-11</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -645,7 +645,18 @@ async function loadFromDrive() {
       const text = await res.text();
       if(text && text.trim().startsWith('{')) {
         const data = JSON.parse(text);
-        if(data.tasks !== undefined) appState = data;
+        if(data.tasks !== undefined) {
+          // 数据丢失防护：本地备份比云端新 → 用本地并推送上去
+          let local = null;
+          try { local = JSON.parse(localStorage.getItem('family_v1')||'null'); } catch(e) {}
+          if(local && (local.lastModified||0) > (data.lastModified||0)) {
+            appState = local;
+            console.warn('本地数据比云端新，已恢复本地版本并回传');
+            setTimeout(()=>syncToDrive(), 500);
+          } else {
+            appState = data;
+          }
+        }
         if(!appState.bills) appState.bills = [];
         if(!appState.workLogs) appState.workLogs = [];
         appState.bills.forEach(b=>{ if(b.ledger==='出租房1') b.ledger='出租房45'; if(b.ledger==='出租房2') b.ledger='出租房15'; });
@@ -676,15 +687,32 @@ async function syncToDrive() {
     );
     if(!res) throw new Error('no response');
     setSyncStatus('ok');
+    hideSyncAlert();
     document.getElementById('sync-label').textContent = '已同步 ✓';
     setTimeout(()=>{ document.getElementById('sync-label').textContent = '同步'; }, 2000);
   } catch(e) {
     console.error('Sync error:', e);
     setSyncStatus('err');
     document.getElementById('sync-label').textContent = '同步失败';
-    setTimeout(()=>{ document.getElementById('sync-label').textContent = '同步'; }, 3000);
+    showSyncAlert();
   }
   btn.classList.remove('syncing');
+}
+
+function showSyncAlert() {
+  let bar = document.getElementById('sync-alert-bar');
+  if(!bar) {
+    bar = document.createElement('div');
+    bar.id = 'sync-alert-bar';
+    bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;background:#DC2626;color:#fff;padding:10px 14px;font-size:13px;display:flex;align-items:center;justify-content:center;gap:10px;';
+    bar.innerHTML = '⚠️ 同步失败！新数据只保存在本机，请立即重新登录 <button onclick="signIn()" style="background:#fff;color:#DC2626;border:none;border-radius:6px;padding:5px 14px;font-size:13px;font-weight:600;cursor:pointer;">重新登录</button>';
+    document.body.appendChild(bar);
+  }
+  bar.style.display = 'flex';
+}
+function hideSyncAlert() {
+  const bar = document.getElementById('sync-alert-bar');
+  if(bar) bar.style.display = 'none';
 }
 
 function setSyncStatus(status) {
@@ -695,8 +723,10 @@ function setSyncStatus(status) {
   else icon.textContent='⚠';
 }
 
-// Auto-sync after changes
+// Auto-sync after changes（先本地备份，永不丢数据）
 function saveAndSync() {
+  appState.lastModified = Date.now();
+  try { localStorage.setItem('family_v1', JSON.stringify(appState)); } catch(e) {}
   syncToDrive();
   render();
 }
