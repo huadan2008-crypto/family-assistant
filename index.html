@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.7 · 2026-06-11</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.0 · 2026-06-11</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -185,9 +185,10 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
         <div class="mc-icon">🏥</div><div class="mc-title">健康</div>
         <div class="mc-sub">即将推出</div>
       </div>
-      <div class="module-card module-card-soon" onclick="enterModule('docs')">
-        <div class="mc-icon">📁</div><div class="mc-title">文档</div>
-        <div class="mc-sub">即将推出</div>
+      <div class="module-card" onclick="enterModule('recipes')">
+        <div class="mc-icon">🍳</div><div class="mc-title">食谱</div>
+        <div class="mc-sub">菜谱 · 点菜 · 购物清单</div>
+        <div class="mc-badge" id="mc-badge-recipes"></div>
       </div>
     </div>
   </div>
@@ -203,6 +204,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
     <button class="nav-tab" data-page="ai" onclick="showPage('ai')">🤖 AI</button>
     <button class="nav-tab" data-page="finance" onclick="showPage('finance')">💰 财务</button>
     <button class="nav-tab" data-page="worklog" onclick="showPage('worklog')">📝 工作日志</button>
+    <button class="nav-tab" data-page="recipes" onclick="showPage('recipes')">🍳 食谱</button>
   </div>
   <div class="nav-right">
     <button class="sync-btn" id="sync-btn" onclick="syncToDrive()">
@@ -423,6 +425,48 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
     </div>
   </div>
 
+  <!-- 食谱 -->
+  <div class="page" id="page-recipes">
+    <div class="sec-header">
+      <div><div class="sec-title">家庭食谱</div><div class="sec-sub">菜谱库 · 点菜 · 食材与购物清单</div></div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <label class="btn btn-primary" style="cursor:pointer;">
+        📷 拍照菜谱
+        <input type="file" id="recipe-photo-input" accept="image/*" style="display:none;" onchange="handleRecipePhoto(event)" />
+      </label>
+      <button class="btn" onclick="openRecipeModal()">✏️ 手动添加</button>
+      <label class="btn" style="cursor:pointer;">
+        🧊 拍冰箱更新食材
+        <input type="file" id="pantry-photo-input" accept="image/*" style="display:none;" onchange="handlePantryPhoto(event)" />
+      </label>
+      <button class="btn" onclick="openShoppingList()">🛒 购物清单 <span id="shop-count" style="color:var(--accent-text);font-weight:600;"></span></button>
+    </div>
+
+    <div id="recipe-processing" style="display:none;background:var(--accent-bg);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--accent-text);"></div>
+
+    <!-- 现有食材 -->
+    <div class="card" style="margin-bottom:12px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;">🧊 现有食材</div>
+        <button class="btn btn-sm" onclick="editPantry()">编辑</button>
+      </div>
+      <div id="pantry-display" style="font-size:13px;color:var(--text);line-height:1.8;"></div>
+    </div>
+
+    <!-- 搜索与筛选 -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+      <input type="text" id="recipe-search" placeholder="🔍 搜索菜名/食材…" oninput="renderRecipes()" style="flex:1;min-width:140px;font-size:13px;padding:8px 12px;border:0.5px solid var(--border2);border-radius:8px;background:var(--surface);color:var(--text);" />
+      <button class="btn btn-sm" id="rf-all" onclick="setRecipeFilter('all')">全部</button>
+      <button class="btn btn-sm" id="rf-fav" onclick="setRecipeFilter('fav')">⭐ 收藏</button>
+      <button class="btn btn-sm" id="rf-liked" onclick="setRecipeFilter('liked')">❤️ 被点的菜</button>
+    </div>
+
+    <!-- 菜谱卡片 -->
+    <div id="recipe-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;"></div>
+  </div>
+
   <!-- 健康（占位） -->
   <div class="page" id="page-health">
     <div style="text-align:center;padding:60px 20px;color:var(--text3);">
@@ -531,7 +575,7 @@ const MEMBERS=[
 // ── State ─────────────────────────────────────────
 let accessToken = null;
 let driveFileId = null;
-let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[] };
+let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[], recipes:[], pantry:[], shopping:[] };
 let currentFilter = 'all';
 let selectedMember = null;
 const pickerSel = {};
@@ -665,6 +709,9 @@ async function loadFromDrive() {
         }
         if(!appState.bills) appState.bills = [];
         if(!appState.workLogs) appState.workLogs = [];
+        if(!appState.recipes) appState.recipes = [];
+        if(!appState.pantry) appState.pantry = [];
+        if(!appState.shopping) appState.shopping = [];
         appState.bills.forEach(b=>{ if(b.ledger==='出租房1') b.ledger='出租房45'; if(b.ledger==='出租房2') b.ledger='出租房15'; });
         // 中文类别 → 英文迁移
         const CAT_MAP={'食品杂货':'Groceries','餐饮':'Dining','水电气':'Hydro','网络通讯':'Internet','房贷/房租':'Mortgage Interest','保险':'Home Insurance','汽车/交通':'Auto & Transport','教育':'Education','医疗':'Medical','购物':'Shopping','娱乐':'Entertainment','维修':'Repairs & Maintenance','订阅':'Subscriptions','其他':'Other','旅行':'Travel'};
@@ -779,6 +826,7 @@ function resetPicker(cid) { pickerSel[cid]=new Set(); buildPicker(cid); }
 const MODULE_TABS = {
   schedule: ['tasks','appts','all-tasks','members','ai'],
   finance:  ['finance','worklog','ai'],
+  recipes:  ['recipes','ai'],
   health:   [],
   docs:     []
 };
@@ -807,6 +855,10 @@ function updateHomeBadges() {
     const curMonth = todayStr.slice(0,7);
     const mTotal = (appState.bills||[]).filter(b=>(b.date||'').startsWith(curMonth)).reduce((s,b)=>s+Number(b.amount||0),0);
     document.getElementById('mc-badge-finance').textContent = mTotal > 0 ? '$'+(mTotal>=1000?(mTotal/1000).toFixed(1)+'k':mTotal.toFixed(0)) : '';
+    const weekAgo2 = new Date(Date.now()-7*864e5).toLocaleDateString('en-CA');
+    const likedCount = (appState.recipes||[]).filter(r=>(r.likes||[]).some(l=>l.date>=weekAgo2)).length;
+    const badge = document.getElementById('mc-badge-recipes');
+    if(badge) badge.textContent = likedCount > 0 ? '❤️'+likedCount : '';
   } catch(e) {}
 }
 
@@ -822,6 +874,7 @@ function enterModule(m) {
   updateAIQuickButtons();
   if(m === 'schedule') { showPage('tasks'); showAISchedule(); }
   else if(m === 'finance') showPage('finance');
+  else if(m === 'recipes') showPage('recipes');
   else if(m === 'health') showPage('health');
   else if(m === 'docs') showPage('docs');
 }
@@ -831,11 +884,12 @@ function showPage(id) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
-  const idx={tasks:0,appts:1,'all-tasks':2,members:3,ai:4,finance:5,worklog:6};
+  const idx={tasks:0,appts:1,'all-tasks':2,members:3,ai:4,finance:5,worklog:6,recipes:7};
   if(idx[id]!==undefined) document.querySelectorAll('.nav-tab')[idx[id]].classList.add('active');
   render();
   if(id==='finance') renderFinance();
   if(id==='worklog') renderWorkLog();
+  if(id==='recipes') renderRecipes();
 }
 
 // ── Render ────────────────────────────────────────
@@ -1367,6 +1421,318 @@ function aiAnalyzeCat(cat) {
   showPage('ai');
   document.getElementById('ai-input').value = `请深入分析「${cat}」这个类别的消费：1) 近6个月趋势和环比变化 2) 最大的几笔支出 3) 有没有异常或值得关注的地方 4) 这类费用在我们的税务结构下哪些账本可以抵扣，优化建议`;
   sendAIMessage();
+}
+
+// ── 食谱模块 ──────────────────────────────────────
+let recipeFilter = 'all';
+let recipeFolderId = null;
+
+function getUserName() {
+  let n = localStorage.getItem('fa_username');
+  if(!n) {
+    n = prompt('你的名字是？（用于点菜记录）', 'Jin') || '家人';
+    localStorage.setItem('fa_username', n);
+  }
+  return n;
+}
+
+async function uploadRecipeImage(base64, mimeType, name) {
+  try {
+    if(!recipeFolderId) {
+      const q = encodeURIComponent("name='菜谱图片' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+      const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`);
+      if(!res) return '';
+      const data = await res.json();
+      if(data.files && data.files.length) { recipeFolderId = data.files[0].id; }
+      else {
+        const cr = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({name:'菜谱图片', mimeType:'application/vnd.google-apps.folder'})
+        });
+        if(!cr) return '';
+        recipeFolderId = (await cr.json()).id;
+      }
+    }
+    const safe = (name||'菜谱').replace(/[\\/:*?"<>|]/g,'').slice(0,30);
+    const ext = mimeType.split('/')[1]==='jpeg'?'jpg':mimeType.split('/')[1];
+    const boundary = '-------fa' + Date.now();
+    const meta = JSON.stringify({name:`${safe}_${Date.now().toString().slice(-6)}.${ext}`, parents:[recipeFolderId]});
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
+    const res = await driveRequest('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+      method:'POST', headers:{'Content-Type':`multipart/related; boundary=${boundary}`}, body
+    });
+    if(!res) return '';
+    return (await res.json()).id || '';
+  } catch(e) { console.error('菜谱图片上传失败', e); return ''; }
+}
+
+async function handleRecipePhoto(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if(!file) return;
+  if(!getApiKey()) { openApiKeyModal(); return; }
+  const proc = document.getElementById('recipe-processing');
+  proc.style.display = 'block';
+  proc.textContent = '🤖 AI 正在识别菜谱…';
+  try {
+    const base64 = await new Promise((res,rej)=>{
+      const r = new FileReader();
+      r.onload = ()=>res(r.result.split(',')[1]);
+      r.onerror = ()=>rej(new Error('读取图片失败'));
+      r.readAsDataURL(file);
+    });
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body: JSON.stringify({
+        model:'claude-haiku-4-5-20251001', max_tokens:1500,
+        messages:[{role:'user', content:[
+          {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
+          {type:'text', text:`识别这张菜谱图片，返回纯JSON（不要markdown）：
+{"name":"菜名","cuisine":"中餐/西餐/日韩/烘焙/其他","ingredients":"每行一个食材和用量，用\\n分隔","steps":"做法步骤，用\\n分隔"}
+如果是网页截图或印刷菜谱，照原文提取；手写的尽量辨认。`}
+        ]}]
+      })
+    });
+    const data = await response.json();
+    if(!data.content||!data.content[0]) throw new Error('识别失败');
+    const parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
+    proc.textContent = '📤 正在保存图片…';
+    const imageId = await uploadRecipeImage(base64, file.type, parsed.name);
+    proc.style.display = 'none';
+    openRecipeModal({ name:parsed.name||'', cuisine:parsed.cuisine||'中餐', ingredients:parsed.ingredients||'', steps:parsed.steps||'', imageId });
+  } catch(e) {
+    proc.style.display = 'none';
+    alert('菜谱识别失败：' + e.message);
+  }
+}
+
+function openRecipeModal(prefill) {
+  document.getElementById('rcp-title-label').textContent = prefill?.id ? '编辑菜谱' : '添加菜谱';
+  document.getElementById('rcp-name').value = prefill?.name ?? '';
+  document.getElementById('rcp-cuisine').value = prefill?.cuisine ?? '中餐';
+  document.getElementById('rcp-ingredients').value = prefill?.ingredients ?? '';
+  document.getElementById('rcp-steps').value = prefill?.steps ?? '';
+  document.getElementById('rcp-edit-id').value = prefill?.id ?? '';
+  document.getElementById('rcp-image-id').value = prefill?.imageId ?? '';
+  document.getElementById('rcp-delete-btn').style.display = prefill?.id ? '' : 'none';
+  document.getElementById('recipe-modal').classList.add('open');
+}
+
+function saveRecipe() {
+  const name = document.getElementById('rcp-name').value.trim();
+  if(!name) { alert('请填写菜名'); return; }
+  const editId = document.getElementById('rcp-edit-id').value;
+  const data = {
+    name,
+    cuisine: document.getElementById('rcp-cuisine').value,
+    ingredients: document.getElementById('rcp-ingredients').value.trim(),
+    steps: document.getElementById('rcp-steps').value.trim(),
+    imageId: document.getElementById('rcp-image-id').value || ''
+  };
+  if(!appState.recipes) appState.recipes = [];
+  if(editId) {
+    const r = appState.recipes.find(r=>r.id===editId);
+    if(r) Object.assign(r, data);
+  } else {
+    appState.recipes.push({ id:uid(), ...data, fav:false, likes:[], created:new Date().toISOString() });
+  }
+  document.getElementById('recipe-modal').classList.remove('open');
+  saveAndSync();
+  renderRecipes();
+}
+
+function deleteRecipe() {
+  const editId = document.getElementById('rcp-edit-id').value;
+  if(!editId || !confirm('确定删除这个菜谱吗？')) return;
+  appState.recipes = appState.recipes.filter(r=>r.id!==editId);
+  document.getElementById('recipe-modal').classList.remove('open');
+  saveAndSync();
+  renderRecipes();
+}
+
+function toggleFav(id, ev) {
+  ev.stopPropagation();
+  const r = appState.recipes.find(r=>r.id===id);
+  if(r) { r.fav = !r.fav; saveAndSync(); renderRecipes(); }
+}
+
+function likeRecipe(id, ev) {
+  ev.stopPropagation();
+  const r = appState.recipes.find(r=>r.id===id);
+  if(!r) return;
+  if(!r.likes) r.likes = [];
+  r.likes.push({ who:getUserName(), date:new Date().toLocaleDateString('en-CA') });
+  saveAndSync();
+  renderRecipes();
+}
+
+function setRecipeFilter(f) {
+  recipeFilter = f;
+  ['all','fav','liked'].forEach(x=>{
+    const b = document.getElementById('rf-'+x);
+    if(b) b.classList.toggle('btn-primary', x===f);
+  });
+  renderRecipes();
+}
+
+function renderRecipes() {
+  const page = document.getElementById('page-recipes');
+  if(!page || !page.classList.contains('active')) return;
+
+  // 食材展示
+  const pantry = appState.pantry || [];
+  document.getElementById('pantry-display').innerHTML = pantry.length === 0
+    ? '<span style="color:var(--text3);">还没有记录——拍一张冰箱照片让 AI 识别</span>'
+    : pantry.map(p=>`<span style="display:inline-block;background:var(--surface2);border-radius:6px;padding:2px 9px;margin:0 4px 4px 0;font-size:12px;">${esc(p)}</span>`).join('');
+
+  // 购物清单角标
+  const shopOpen = (appState.shopping||[]).filter(s=>!s.checked).length;
+  document.getElementById('shop-count').textContent = shopOpen > 0 ? `(${shopOpen})` : '';
+
+  // 筛选
+  const q = (document.getElementById('recipe-search')?.value||'').toLowerCase().trim();
+  let list = appState.recipes || [];
+  if(recipeFilter==='fav') list = list.filter(r=>r.fav);
+  if(recipeFilter==='liked') list = list.filter(r=>(r.likes||[]).length>0);
+  if(q) list = list.filter(r=>(r.name||'').toLowerCase().includes(q)||(r.ingredients||'').toLowerCase().includes(q)||(r.cuisine||'').includes(q));
+
+  // 本周点菜次数（近7天）
+  const weekAgo = new Date(Date.now()-7*864e5).toLocaleDateString('en-CA');
+
+  document.getElementById('recipe-grid').innerHTML = list.length === 0
+    ? '<div style="grid-column:1/-1;font-size:13px;color:var(--text3);text-align:center;padding:30px 0;">还没有菜谱——拍照或手动添加第一道菜</div>'
+    : list.map(r=>{
+        const weekLikes = (r.likes||[]).filter(l=>l.date>=weekAgo);
+        const likers = [...new Set(weekLikes.map(l=>l.who))].join('、');
+        return `<div onclick="openRecipeModal(appState.recipes.find(x=>x.id==='${r.id}'))" style="background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:14px;cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div style="font-size:15px;font-weight:600;color:var(--text);flex:1;">${esc(r.name)}</div>
+            <button onclick="toggleFav('${r.id}',event)" style="background:none;border:none;cursor:pointer;font-size:16px;padding:0 2px;">${r.fav?'⭐':'☆'}</button>
+          </div>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">${r.cuisine||''}${r.imageId?' · 📷':''}</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
+            <button onclick="likeRecipe('${r.id}',event)" style="background:var(--accent-bg);border:none;border-radius:8px;cursor:pointer;font-size:12px;padding:4px 10px;color:var(--accent-text);">❤️ 想吃 ${weekLikes.length>0?weekLikes.length:''}</button>
+            <button onclick="addRecipeToShopping('${r.id}',event)" style="background:none;border:0.5px solid var(--border2);border-radius:8px;cursor:pointer;font-size:12px;padding:4px 8px;color:var(--text2);">🛒</button>
+          </div>
+          ${likers?`<div style="font-size:10px;color:var(--text3);margin-top:6px;">本周：${esc(likers)} 想吃</div>`:''}
+        </div>`;
+      }).join('');
+}
+
+// ── 食材（拍冰箱）──────────────────────────────────
+async function handlePantryPhoto(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if(!file) return;
+  if(!getApiKey()) { openApiKeyModal(); return; }
+  const proc = document.getElementById('recipe-processing');
+  proc.style.display = 'block';
+  proc.textContent = '🤖 AI 正在识别食材…';
+  try {
+    const base64 = await new Promise((res,rej)=>{
+      const r = new FileReader();
+      r.onload = ()=>res(r.result.split(',')[1]);
+      r.onerror = ()=>rej(new Error('读取图片失败'));
+      r.readAsDataURL(file);
+    });
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+      body: JSON.stringify({
+        model:'claude-haiku-4-5-20251001', max_tokens:800,
+        messages:[{role:'user', content:[
+          {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
+          {type:'text', text:'识别照片里的食材（冰箱/储藏柜/桌面食材），返回纯JSON字符串数组（不要markdown）：["西红柿","鸡蛋","排骨"]。只列食材名，不写数量。'}
+        ]}]
+      })
+    });
+    const data = await response.json();
+    const items = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
+    proc.style.display = 'none';
+    // 与现有合并去重后让用户确认
+    const merged = [...new Set([...(appState.pantry||[]), ...items])];
+    document.getElementById('pantry-edit').value = merged.join('\n');
+    document.getElementById('pantry-modal').classList.add('open');
+  } catch(e) {
+    proc.style.display = 'none';
+    alert('食材识别失败：' + e.message);
+  }
+}
+
+function editPantry() {
+  document.getElementById('pantry-edit').value = (appState.pantry||[]).join('\n');
+  document.getElementById('pantry-modal').classList.add('open');
+}
+
+function savePantry() {
+  appState.pantry = document.getElementById('pantry-edit').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  document.getElementById('pantry-modal').classList.remove('open');
+  saveAndSync();
+  renderRecipes();
+}
+
+// ── 购物清单 ───────────────────────────────────────
+function addRecipeToShopping(id, ev) {
+  ev.stopPropagation();
+  const r = appState.recipes.find(r=>r.id===id);
+  if(!r || !r.ingredients) { alert('该菜谱没有食材清单'); return; }
+  if(!appState.shopping) appState.shopping = [];
+  const pantryLower = (appState.pantry||[]).map(p=>p.toLowerCase());
+  let added = 0, skipped = 0;
+  r.ingredients.split('\n').map(s=>s.trim()).filter(Boolean).forEach(ing => {
+    const ingName = ing.split(/[\s\d]/)[0];
+    // 已有食材跳过
+    if(pantryLower.some(p=>ing.toLowerCase().includes(p)||p.includes(ingName.toLowerCase()))) { skipped++; return; }
+    // 已在清单里跳过
+    if(appState.shopping.some(s=>!s.checked && s.name===ing)) return;
+    appState.shopping.push({ id:uid(), name:ing, checked:false, from:r.name });
+    added++;
+  });
+  saveAndSync();
+  renderRecipes();
+  alert(`✅ 已加入 ${added} 项${skipped>0?`（${skipped} 项家里已有，跳过）`:''}`);
+}
+
+function openShoppingList() {
+  renderShoppingList();
+  document.getElementById('shopping-modal').classList.add('open');
+}
+
+function renderShoppingList() {
+  const list = appState.shopping || [];
+  document.getElementById('shopping-list').innerHTML = list.length === 0
+    ? '<div style="font-size:13px;color:var(--text3);padding:20px 0;text-align:center;">清单是空的——从菜谱卡片点 🛒 添加食材</div>'
+    : list.map(s=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:0.5px solid var(--border);">
+        <input type="checkbox" ${s.checked?'checked':''} onchange="toggleShopItem('${s.id}')" style="width:17px;height:17px;" />
+        <div style="flex:1;font-size:14px;color:var(--text);${s.checked?'text-decoration:line-through;opacity:0.5;':''}">${esc(s.name)}</div>
+        ${s.from?`<div style="font-size:10px;color:var(--text3);">${esc(s.from)}</div>`:''}
+      </div>`).join('');
+}
+
+function toggleShopItem(id) {
+  const s = (appState.shopping||[]).find(s=>s.id===id);
+  if(s) { s.checked = !s.checked; saveAndSync(); renderShoppingList(); renderRecipes(); }
+}
+
+function addShopItem() {
+  const input = document.getElementById('shop-add-input');
+  const name = input.value.trim();
+  if(!name) return;
+  if(!appState.shopping) appState.shopping = [];
+  appState.shopping.push({ id:uid(), name, checked:false, from:'' });
+  input.value = '';
+  saveAndSync();
+  renderShoppingList();
+  renderRecipes();
+}
+
+function clearCheckedShop() {
+  appState.shopping = (appState.shopping||[]).filter(s=>!s.checked);
+  saveAndSync();
+  renderShoppingList();
+  renderRecipes();
 }
 
 // ── 工作日志（Green Ring 服务记录）──────────────────
@@ -1912,6 +2278,35 @@ function getApiKey(){return localStorage.getItem('anthropic_api_key')||'';}
 function setApiKey(k){localStorage.setItem('anthropic_api_key',k);}
 let aiHistory = [];
 
+// 食谱模块专属 AI 提示词
+function buildRecipePrompt() {
+  const recipes = appState.recipes || [];
+  const pantry = appState.pantry || [];
+  const weekAgo = new Date(Date.now()-7*864e5).toLocaleDateString('en-CA');
+
+  let recipeList = '';
+  recipes.slice(0,60).forEach(r => {
+    const weekLikes = (r.likes||[]).filter(l=>l.date>=weekAgo);
+    const likers = [...new Set(weekLikes.map(l=>l.who))].join('、');
+    recipeList += `- ${r.name}（${r.cuisine||'其他'}）${r.fav?'⭐收藏':''}${likers?' ❤️本周想吃:'+likers:''}\n  食材：${(r.ingredients||'').replace(/\n/g,'、').slice(0,100)}\n`;
+  });
+
+  return `你是Jin家的家庭餐饮AI助手。家里有：Qi（爸爸）、Jin（妈妈）、Ryan、Rainyee、Richard（三个孩子）、还有老人同住。
+
+【菜谱库（共${recipes.length}道）】
+${recipeList||'（还没有菜谱）'}
+
+【现有食材】
+${pantry.join('、')||'（未记录）'}
+
+【你的任务】
+- 推荐今天做什么菜：优先用现有食材能做的，参考孩子们本周点的菜（❤️标记）
+- 营养均衡：考虑荤素搭配、老人孩子都适合
+- 生成购物清单：用户选定菜后，列出缺少的食材
+- 新菜建议：根据家里的口味偏好（看收藏和点菜记录）推荐菜谱库以外的新菜
+- 用中文回复，简洁实用，像贴心的家庭餐饮顾问`;
+}
+
 // 财务模块专属 AI 提示词
 function buildFinancePrompt() {
   const today = new Date();
@@ -1987,6 +2382,7 @@ ${(()=>{const logs=(appState.workLogs||[]).filter(w=>(w.date||'').startsWith(cur
 
 function buildSystemPrompt() {
   if(currentModule === 'finance') return buildFinancePrompt();
+  if(currentModule === 'recipes') return buildRecipePrompt();
   const today = new Date();
   // 用本地时间生成日期字符串，避免UTC偏差
   const pad = n=>String(n).padStart(2,'0');
@@ -2209,7 +2605,12 @@ function aiAnalyzeImport() {
 function updateAIQuickButtons() {
   const el = document.getElementById('ai-quick-btns');
   if(!el) return;
-  if(currentModule === 'finance') {
+  if(currentModule === 'recipes') {
+    el.innerHTML = `
+      <button class="btn btn-sm btn-primary" onclick="aiQuickAction('rcp-today')">🍽 今天做什么</button>
+      <button class="btn btn-sm" onclick="aiQuickAction('rcp-kids')">❤️ 孩子们想吃的</button>
+      <button class="btn btn-sm" onclick="aiQuickAction('rcp-new')">✨ 推荐新菜</button>`;
+  } else if(currentModule === 'finance') {
     el.innerHTML = `
       <button class="btn btn-sm btn-primary" onclick="aiQuickAction('fin-month')">📊 本月消费分析</button>
       <button class="btn btn-sm" onclick="aiQuickAction('fin-trend')">📈 异常与趋势</button>
@@ -2231,6 +2632,9 @@ async function aiQuickAction(type) {
   else if(type==='fin-month') msg = '请分析本月消费：总额、分类占比、和上月对比，有什么值得注意的？';
   else if(type==='fin-trend') msg = '请检查近6个月的支出趋势，哪些类别有异常波动（环比变化大）？给出可能的原因猜测和建议。';
   else if(type==='fin-big') msg = '列出本月金额最大的10笔支出，并标注哪些可能可以抵税（按账本归属规则）。';
+  else if(type==='rcp-today') msg = '根据现有食材和孩子们本周点的菜，推荐今天晚餐做什么？给出2-3个方案，标注哪些食材需要买。';
+  else if(type==='rcp-kids') msg = '孩子们本周都点了哪些菜？帮我安排一下这周的晚餐计划，尽量满足他们的愿望同时保证营养均衡。';
+  else if(type==='rcp-new') msg = '根据我们家的口味偏好（收藏和点菜记录），推荐3道菜谱库里没有的新菜，附简单食材清单。';
   else if(type==='fin-audit') msg = '请按CRA合规规则审查本月所有账单的账本归类，逐笔指出有问题或可疑的分类：说明问题、风险（特别是股东受益风险）、建议改到哪个账本。同时检查「待定」账本里的账单并给出归属建议。';
 
   document.getElementById('ai-input').value = msg;
@@ -2292,6 +2696,61 @@ function clearAIChat() {
 </script>
 
 <!-- API Key 设置 Modal -->
+<!-- 菜谱详情/编辑 Modal -->
+<div class="modal-wrap" id="recipe-modal">
+  <div class="modal" style="max-width:560px;max-height:88vh;display:flex;flex-direction:column;overflow-y:auto;">
+    <div class="modal-title" id="rcp-title-label">添加菜谱</div>
+    <div class="form-row">
+      <div style="flex:2"><label class="fl">菜名</label><input type="text" id="rcp-name" placeholder="比如：红烧排骨" /></div>
+      <div style="flex:1"><label class="fl">菜系</label>
+        <select id="rcp-cuisine"><option>中餐</option><option>西餐</option><option>日韩</option><option>烘焙</option><option>其他</option></select>
+      </div>
+    </div>
+    <div class="form-row"><label class="fl" style="flex-basis:100%">食材（每行一个，格式：食材 用量）</label>
+      <textarea id="rcp-ingredients" rows="5" style="flex-basis:100%;font-size:13px;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical;" placeholder="排骨 500g&#10;生姜 3片&#10;冰糖 适量"></textarea>
+    </div>
+    <div class="form-row"><label class="fl" style="flex-basis:100%">做法步骤</label>
+      <textarea id="rcp-steps" rows="6" style="flex-basis:100%;font-size:13px;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical;" placeholder="1. 排骨焯水…"></textarea>
+    </div>
+    <input type="hidden" id="rcp-edit-id" />
+    <input type="hidden" id="rcp-image-id" />
+    <div class="modal-actions">
+      <button class="btn" id="rcp-delete-btn" onclick="deleteRecipe()" style="display:none;color:var(--danger-text);">删除</button>
+      <button class="btn" onclick="document.getElementById('recipe-modal').classList.remove('open')">取消</button>
+      <button class="btn btn-primary" onclick="saveRecipe()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 购物清单 Modal -->
+<div class="modal-wrap" id="shopping-modal">
+  <div class="modal" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="modal-title">🛒 购物清单</div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;">
+      <input type="text" id="shop-add-input" placeholder="添加项目…" onkeydown="if(event.key==='Enter')addShopItem()" style="flex:1;font-size:13px;padding:7px 10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);" />
+      <button class="btn btn-sm btn-primary" onclick="addShopItem()">添加</button>
+    </div>
+    <div id="shopping-list" style="flex:1;overflow-y:auto;min-height:80px;max-height:50vh;"></div>
+    <div class="modal-actions" style="margin-top:10px;">
+      <button class="btn" onclick="clearCheckedShop()">清除已买</button>
+      <button class="btn btn-primary" onclick="document.getElementById('shopping-modal').classList.remove('open')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 食材确认 Modal -->
+<div class="modal-wrap" id="pantry-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="modal-title">🧊 更新现有食材</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">每行一个食材，确认后替换当前清单。</p>
+    <textarea id="pantry-edit" rows="10" style="width:100%;font-size:13px;padding:8px 10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);resize:vertical;box-sizing:border-box;"></textarea>
+    <div class="modal-actions" style="margin-top:10px;">
+      <button class="btn" onclick="document.getElementById('pantry-modal').classList.remove('open')">取消</button>
+      <button class="btn btn-primary" onclick="savePantry()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 收据单项 Modal -->
 <div class="modal-wrap" id="receipt-items-modal">
   <div class="modal" style="max-width:600px;max-height:85vh;display:flex;flex-direction:column;">
