@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.5 · 2026-06-11</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v2.6 · 2026-06-11</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -327,6 +327,10 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
         📄 上传PDF账单
         <input type="file" id="statement-input" accept="application/pdf" style="display:none;" onchange="handleStatementUpload(event)" />
       </label>
+      <label class="btn" style="cursor:pointer;">
+        📊 上传CSV/Excel
+        <input type="file" id="csv-input" accept=".csv,.xlsx,.xls" style="display:none;" onchange="handleCSVUpload(event)" />
+      </label>
       <button class="btn" onclick="openBillModal()">✏️ 手动记一笔</button>
       <button class="btn" onclick="openLedgerBatch()">🏷 批量设置账本</button>
     </div>
@@ -365,7 +369,10 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
 
     <!-- 账单列表 -->
     <div class="card">
-      <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;" id="fin-list-label">本月账单明细</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <div style="font-size:12px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:.05em;flex:1;" id="fin-list-label">本月账单明细</div>
+        <input type="text" id="fin-search" placeholder="🔍 搜索商家/备注…" oninput="renderFinance()" style="font-size:12px;padding:5px 10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);width:160px;" />
+      </div>
       <div id="fin-bill-list"></div>
     </div>
   </div>
@@ -660,6 +667,9 @@ async function loadFromDrive() {
         if(!appState.bills) appState.bills = [];
         if(!appState.workLogs) appState.workLogs = [];
         appState.bills.forEach(b=>{ if(b.ledger==='出租房1') b.ledger='出租房45'; if(b.ledger==='出租房2') b.ledger='出租房15'; });
+        // 中文类别 → 英文迁移
+        const CAT_MAP={'食品杂货':'Groceries','餐饮':'Dining','水电气':'Hydro','网络通讯':'Internet','房贷/房租':'Mortgage Interest','保险':'Home Insurance','汽车/交通':'Auto & Transport','教育':'Education','医疗':'Medical','购物':'Shopping','娱乐':'Entertainment','维修':'Repairs & Maintenance','订阅':'Subscriptions','其他':'Other','旅行':'Travel'};
+        appState.bills.forEach(b=>{ if(CAT_MAP[b.cat]) b.cat=CAT_MAP[b.cat]; });
       }
     }
     setSyncStatus('ok');
@@ -1073,8 +1083,8 @@ function saveMemberNote(memberId) {
 }
 
 // ── 财务模块 ──────────────────────────────────────
-const FIN_CATS = ['食品杂货','餐饮','水电气','网络通讯','房贷/房租','保险','汽车/交通','教育','医疗','购物','娱乐','维修','订阅','其他'];
-const FIN_CAT_COLORS = {'食品杂货':'#0F6E56','餐饮':'#BA7517','水电气':'#185FA5','网络通讯':'#534AB7','房贷/房租':'#993C1D','保险':'#854F0B','汽车/交通':'#D4537E','教育':'#639922','医疗':'#C2410C','购物':'#7C3AED','娱乐':'#0891B2','维修':'#B45309','订阅':'#5B21B6','其他':'#6B7280'};
+const FIN_CATS = ['Groceries','Dining','Hydro','Gas','Water & Waste','Internet','Mobile','Mortgage Interest','Property Tax','Home Insurance','Repairs & Maintenance','Auto & Transport','Education','Medical','Shopping','Entertainment','Travel','Subscriptions','Other'];
+const FIN_CAT_COLORS = {'Groceries':'#0F6E56','Dining':'#BA7517','Hydro':'#185FA5','Gas':'#F59E0B','Water & Waste':'#0891B2','Internet':'#534AB7','Mobile':'#7C3AED','Mortgage Interest':'#993C1D','Property Tax':'#854F0B','Home Insurance':'#B45309','Repairs & Maintenance':'#D97706','Auto & Transport':'#D4537E','Education':'#639922','Medical':'#C2410C','Shopping':'#8B5CF6','Entertainment':'#0891B2','Travel':'#0369A1','Subscriptions':'#5B21B6','Other':'#6B7280'};
 const FIN_LEDGERS = ['个人','Guoqi Research','Green Ring','出租房45','出租房15','住宅共用','待定'];
 const FIN_LEDGER_COLORS = {'个人':'#6B7280','Guoqi Research':'#185FA5','Green Ring':'#0F6E56','出租房45':'#BA7517','出租房15':'#854F0B','住宅共用':'#534AB7','待定':'#DC2626'};
 let finViewMonth = null; // 'YYYY-MM' being viewed
@@ -1115,7 +1125,7 @@ function renderFinance() {
     : sorted.map(([cat,v]) => {
         const c = FIN_CAT_COLORS[cat]||'#6B7280';
         const pct = total>0 ? (v/total*100).toFixed(0) : 0;
-        return `<div style="margin-bottom:8px;">
+        return `<div style="margin-bottom:8px;cursor:pointer;" onclick="aiAnalyzeCat('${cat}')" title="点击让 AI 分析此类别">
           <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
             <span style="color:var(--text);">${cat}</span>
             <span style="color:var(--text2);">$${v.toFixed(2)} · ${pct}%</span>
@@ -1254,6 +1264,110 @@ function riFallbackSingle() {
     note: parsed.merchant || '', hst: parsed.hst || '', receiptId: receiptId,
     dupWarning: dup ? `⚠️ 疑似重复：已有 ${dup.date} 「${dup.note||dup.cat}」$${Number(dup.amount).toFixed(2)}` : ''
   });
+}
+
+// ── 取消收据弹窗（恢复 AI 多单项状态）────────────────
+function cancelBillModal() {
+  document.getElementById('bill-modal').classList.remove('open');
+  // 如果是从多单项流程来的，重新打开分账界面
+  if(pendingReceipt) { renderReceiptItems(); }
+}
+
+// ── 智能商家→类别映射 ────────────────────────────────
+const MERCHANT_CAT_MAP = [
+  [/toronto hydro|hydro one|hydro/i, 'Hydro'],
+  [/enbridge/i, 'Gas'],
+  [/toronto water|region.*water|water.*region/i, 'Water & Waste'],
+  [/rogers|fido|koodo|telus|bell|virgin mobile|public mobile/i, 'Mobile'],
+  [/shaw|cogeco|teksavvy|bell.*internet|rogers.*internet/i, 'Internet'],
+  [/uber eats|doordash|skip.*dishes|grubhub/i, 'Dining'],
+  [/uber|lyft|taxi|cab|via rail|go transit|ttc|presto|greyhound/i, 'Auto & Transport'],
+  [/costco|sobeys|loblaws|metro|fresh co|food basics|walmart|no frills|t&t|whole foods|farm boy/i, 'Groceries'],
+  [/starbucks|tim hortons|mcdonald|subway|pizza|sushi|restaurant|cafe|bar |bistro|grill|kitchen|dining/i, 'Dining'],
+  [/amazon|canadian tire|home depot|ikea|best buy|costco|walmart|winners|homesense|dollarama/i, 'Shopping'],
+  [/netflix|spotify|apple.*sub|google.*sub|adobe|microsoft 365|dropbox|chatgpt|anthropic/i, 'Subscriptions'],
+  [/expedia|booking\.com|airbnb|hotels|marriott|hilton|delta.*hotel|air canada|westjet|trip\.com|klook/i, 'Travel'],
+  [/pharmacy|shoppers|rexall|clinic|hospital|doctor|dental|optom|vision|medical/i, 'Medical'],
+  [/school|college|university|tuition|udemy|coursera|education/i, 'Education'],
+  [/insurance/i, 'Home Insurance'],
+  [/mortgage|property tax/i, 'Mortgage Interest'],
+];
+
+function guessCat(merchant) {
+  const m = (merchant||'').toLowerCase();
+  for(const [re, cat] of MERCHANT_CAT_MAP) { if(re.test(m)) return cat; }
+  return 'Other';
+}
+
+// ── CSV/Excel 导入 ────────────────────────────────────
+async function handleCSVUpload(event) {
+  const file = event.target.files[0];
+  event.target.value = '';
+  if(!file) return;
+
+  const proc = document.getElementById('receipt-processing');
+  proc.style.display = 'block';
+  proc.textContent = '📊 正在解析 ' + file.name + '…';
+
+  try {
+    const text = await file.text();
+    let rows = [];
+
+    if(file.name.endsWith('.csv')) {
+      // CSV 解析
+      const lines = text.split('\n').filter(l=>l.trim());
+      const header = lines[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());
+      // 常见列名映射
+      const col = (names) => { for(const n of names) { const i=header.findIndex(h=>h.includes(n)); if(i>=0) return i; } return -1; };
+      const dateCol = col(['date','transaction date','trans date','posted']);
+      const descCol = col(['description','merchant','name','payee','memo']);
+      const amtCol  = col(['amount','debit','charge','withdrawal']);
+
+      for(let i=1;i<lines.length;i++) {
+        const cells = lines[i].match(/(".*?"|[^,]+)/g)||lines[i].split(',');
+        const clean = cells.map(c=>c.replace(/^"|"$/g,'').trim());
+        const amount = parseFloat((clean[amtCol]||'').replace(/[$,\s]/g,''));
+        if(!amount || amount <= 0) continue;  // 跳过收入/还款
+        const dateRaw = clean[dateCol]||'';
+        const dateMatch = dateRaw.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})|(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/);
+        let date = '';
+        if(dateMatch) {
+          const d = new Date(dateRaw);
+          if(!isNaN(d)) date = d.toLocaleDateString('en-CA');
+        }
+        const merchant = clean[descCol]||'';
+        rows.push({ date, merchant, amount, hst:0, cat: guessCat(merchant) });
+      }
+    } else {
+      // Excel → 用 AI 解析（Excel 格式复杂，发给 Claude 处理）
+      proc.textContent = '🤖 Excel 格式，AI 正在解析…';
+      const base64 = btoa(unescape(encodeURIComponent(text)));
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
+        body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:2048,
+          messages:[{role:'user', content:`这是一份Excel账单的文本内容。提取所有消费交易，返回纯JSON数组：[{"date":"YYYY-MM-DD","merchant":"商家名","amount":数字,"hst":0,"cat":"分类"}]\n分类从这里选：${FIN_CATS.join(',')}\n\n${text.slice(0,3000)}`}] })
+      });
+      const data = await response.json();
+      rows = JSON.parse(data.content[0].text.replace(/\`\`\`json|\`\`\`/g,'').trim());
+    }
+
+    if(!rows.length) throw new Error('没有识别到任何交易，请确认文件格式');
+    proc.style.display = 'none';
+    pendingStatementTxns = rows;
+    renderStatementReview();
+  } catch(e) {
+    proc.style.display = 'none';
+    alert('CSV/Excel 解析失败：' + e.message);
+  }
+}
+
+// ── 点击类别触发 AI 分析 ─────────────────────────────
+function aiAnalyzeCat(cat) {
+  enterModule('finance');
+  showPage('ai');
+  document.getElementById('ai-input').value = `请深入分析「${cat}」这个类别的消费：1) 近6个月趋势和环比变化 2) 最大的几笔支出 3) 有没有异常或值得关注的地方 4) 这类费用在我们的税务结构下哪些账本可以抵扣，优化建议`;
+  sendAIMessage();
 }
 
 // ── 工作日志（Green Ring 服务记录）──────────────────
@@ -1619,6 +1733,50 @@ async function handleReceiptUpload(event) {
   }
 }
 
+// ── PDF 归档到 Drive ─────────────────────────────────
+let pdfFolderId = null;
+async function findOrCreatePDFFolder(yearMonth) {
+  if(!pdfFolderId) {
+    const q = encodeURIComponent("name='账单PDF' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+    const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`);
+    if(!res) return null;
+    const data = await res.json();
+    if(data.files && data.files.length) { pdfFolderId = data.files[0].id; }
+    else {
+      const cr = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({name:'账单PDF', mimeType:'application/vnd.google-apps.folder'})
+      });
+      if(!cr) return null;
+      pdfFolderId = (await cr.json()).id;
+    }
+  }
+  const q2 = encodeURIComponent(`name='${yearMonth}' and mimeType='application/vnd.google-apps.folder' and '${pdfFolderId}' in parents and trashed=false`);
+  const res2 = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${q2}&fields=files(id)`);
+  if(!res2) return null;
+  const data2 = await res2.json();
+  if(data2.files && data2.files.length) return data2.files[0].id;
+  const cr2 = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name:yearMonth, mimeType:'application/vnd.google-apps.folder', parents:[pdfFolderId]})
+  });
+  if(!cr2) return null;
+  return (await cr2.json()).id;
+}
+
+async function archivePDFToDrive(base64, fileName, yearMonth) {
+  try {
+    const folderId = await findOrCreatePDFFolder(yearMonth);
+    if(!folderId) return;
+    const boundary = '-------fa' + Date.now();
+    const meta = JSON.stringify({name: fileName, parents:[folderId]});
+    const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: application/pdf\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64}\r\n--${boundary}--`;
+    await driveRequest('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+      method:'POST', headers:{'Content-Type':`multipart/related; boundary=${boundary}`}, body
+    });
+  } catch(e) { console.error('PDF归档失败:', e); }
+}
+
 // ── PDF 账单批量识别 ──────────────────────────────
 let pendingStatementTxns = [];
 
@@ -1631,7 +1789,11 @@ async function handleStatementUpload(event) {
 
   const proc = document.getElementById('receipt-processing');
   proc.style.display = 'block';
+  const pdfFileName = `账单_${new Date().toLocaleDateString('en-CA')}_${file.name}`;
+  const pdfYearMonth = new Date().toLocaleDateString('en-CA').slice(0,7);
   proc.textContent = '🤖 AI 正在解析账单，交易较多时可能需要半分钟…';
+  // 归档 PDF（非阻塞）
+  archivePDFToDrive(base64, pdfFileName, pdfYearMonth);
 
   try {
     const base64 = await new Promise((res,rej)=>{
@@ -2212,10 +2374,13 @@ function clearAIChat() {
     <div class="form-row">
       <div style="flex:1"><label class="fl">分类</label>
         <select id="b-cat">
-          <option>食品杂货</option><option>餐饮</option><option>水电气</option>
-          <option>网络通讯</option><option>房贷/房租</option><option>保险</option>
-          <option>汽车/交通</option><option>教育</option><option>医疗</option>
-          <option>购物</option><option>娱乐</option><option>维修</option><option>订阅</option><option>其他</option>
+          <option>Groceries</option><option>Dining</option><option>Hydro</option>
+          <option>Gas</option><option>Water & Waste</option><option>Internet</option>
+          <option>Mobile</option><option>Mortgage Interest</option><option>Property Tax</option>
+          <option>Home Insurance</option><option>Repairs & Maintenance</option>
+          <option>Auto & Transport</option><option>Education</option><option>Medical</option>
+          <option>Shopping</option><option>Entertainment</option><option>Travel</option>
+          <option>Subscriptions</option><option>Other</option>
         </select>
       </div>
       <div style="flex:1"><label class="fl">记账人</label>
@@ -2240,7 +2405,7 @@ function clearAIChat() {
     <input type="hidden" id="b-edit-id" />
     <input type="hidden" id="b-receipt-id" />
     <div class="modal-actions">
-      <button class="btn" onclick="document.getElementById('bill-modal').classList.remove('open')">取消</button>
+      <button class="btn" onclick="cancelBillModal()">取消</button>
       <button class="btn btn-primary" onclick="saveBill()">保存</button>
     </div>
   </div>
