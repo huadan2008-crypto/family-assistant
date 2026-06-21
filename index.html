@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.8 · 2026-06-20</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.9 · 2026-06-21</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -336,6 +336,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       </label>
       <button class="btn" onclick="openBillModal()">✏️ 手动记一笔</button>
       <button class="btn" onclick="openLedgerBatch()">🏷 批量设置账本</button>
+      <button class="btn" onclick="openVendorRules()">📋 商家账本规则</button>
       <button class="btn" onclick="openExportModal()">📊 导出结算单</button>
     </div>
 
@@ -614,7 +615,7 @@ const MEMBERS=[
 // ── State ─────────────────────────────────────────
 let accessToken = null;
 let driveFileId = null;
-let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[], recipes:[], pantry:[], shopping:[], investments:[], recurringWatchlist:[] };
+let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[], recipes:[], pantry:[], shopping:[], investments:[], recurringWatchlist:[], vendorLedgerMap:{} };
 let currentFilter = 'all';
 let selectedMember = null;
 const pickerSel = {};
@@ -1305,7 +1306,7 @@ function renderReceiptItems() {
         ${FIN_CATS.map(c=>`<option ${c===(parsed.cat||'其他')?'selected':''}>${c}</option>`).join('')}
       </select>
       <select id="ri-led-${i}" style="font-size:11px;padding:3px 4px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:104px;">
-        ${FIN_LEDGERS.map(l=>`<option ${l==='个人'?'selected':''}>${l}</option>`).join('')}
+        ${FIN_LEDGERS.map(l=>`<option ${l===(lookupVendorLedger(parsed.merchant)||'个人')?'selected':''}>${l}</option>`).join('')}
       </select>
     </div>`).join('');
   document.getElementById('receipt-items-modal').classList.add('open');
@@ -1319,6 +1320,7 @@ function confirmReceiptItems() {
   items.forEach((it,i)=>{
     const cat = document.getElementById('ri-cat-'+i).value;
     const led = document.getElementById('ri-led-'+i).value;
+    rememberVendorLedger(parsed.merchant, led);
     const key = led + '|' + cat;
     if(!groups[key]) groups[key] = { led, cat, pre:0, hst:0, names:[] };
     const amt = Number(it.amount||0);
@@ -1412,11 +1414,14 @@ async function handleCSVUpload(event) {
       // CSV 解析
       const lines = text.split('\n').filter(l=>l.trim());
       const header = lines[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());
-      // 常见列名映射
+      // 常见列名映射（包含 Cowork/家庭助手 自身导出格式：date,note,amount,hst,cat,ledger,who,receiptId）
       const col = (names) => { for(const n of names) { const i=header.findIndex(h=>h.includes(n)); if(i>=0) return i; } return -1; };
-      const dateCol = col(['date','transaction date','trans date','posted']);
-      const descCol = col(['description','merchant','name','payee','memo']);
-      const amtCol  = col(['amount','debit','charge','withdrawal']);
+      const dateCol   = col(['date','transaction date','trans date','posted']);
+      const descCol   = col(['note','description','merchant','name','payee','memo']);
+      const amtCol    = col(['amount','debit','charge','withdrawal']);
+      const hstCol    = col(['hst','gst','tax']);
+      const catCol    = col(['cat','category','分类']);
+      const ledgerCol = col(['ledger','账本']);
 
       for(let i=1;i<lines.length;i++) {
         const cells = lines[i].match(/(".*?"|[^,]+)/g)||lines[i].split(',');
@@ -1431,7 +1436,12 @@ async function handleCSVUpload(event) {
           if(!isNaN(d)) date = d.toLocaleDateString('en-CA');
         }
         const merchant = clean[descCol]||'';
-        rows.push({ date, merchant, amount, hst:0, cat: guessCat(merchant) });
+        const hst = hstCol>=0 ? (parseFloat((clean[hstCol]||'').replace(/[$,\s]/g,''))||0) : 0;
+        const catRaw = catCol>=0 ? clean[catCol] : '';
+        const cat = catRaw && FIN_CATS.includes(catRaw) ? catRaw : guessCat(merchant);
+        const ledgerRaw = ledgerCol>=0 ? clean[ledgerCol] : '';
+        const ledger = ledgerRaw && FIN_LEDGERS.includes(ledgerRaw) ? ledgerRaw : '';
+        rows.push({ date, merchant, amount, hst, cat, ledger });
       }
     } else {
       // Excel → 用 AI 解析（Excel 格式复杂，发给 Claude 处理）
@@ -1441,7 +1451,7 @@ async function handleCSVUpload(event) {
         method:'POST',
         headers:{ 'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
         body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:2048,
-          messages:[{role:'user', content:`这是一份Excel账单的文本内容。提取所有消费交易，返回纯JSON数组：[{"date":"YYYY-MM-DD","merchant":"商家名","amount":数字,"hst":0,"cat":"分类"}]\n分类从这里选：${FIN_CATS.join(',')}\n\n${text.slice(0,3000)}`}] })
+          messages:[{role:'user', content:`这是一份Excel账单的文本内容。提取所有消费交易，返回纯JSON数组：[{"date":"YYYY-MM-DD","merchant":"商家名","amount":数字,"hst":0,"cat":"分类","ledger":"账本或空字符串"}]\n分类从这里选：${FIN_CATS.join(',')}\n账本从这里选（如果文本中没有明确账本信息，留空字符串，不要猜测）：${FIN_LEDGERS.join(',')}\n\n${text.slice(0,3000)}`}] })
       });
       const data = await response.json();
       rows = JSON.parse(data.content[0].text.replace(/\`\`\`json|\`\`\`/g,'').trim());
@@ -2165,6 +2175,65 @@ function removeFromWatchlist(key) {
   renderFinance();
 }
 
+// ── 商家 → 账本 记忆表 ──────────────────────────────
+// vendorLedgerMap: { normalizedVendorKey: ledgerName }
+function vendorKey(name) {
+  return (name||'').trim().toLowerCase().slice(0,40);
+}
+function lookupVendorLedger(name) {
+  const k = vendorKey(name);
+  if(!k) return null;
+  const map = appState.vendorLedgerMap || {};
+  // 精确匹配优先，否则查找包含关系（比如 "FIDO MOBILE TORONTO" 包含已记住的 "fido"）
+  if(map[k]) return map[k];
+  for(const key in map) {
+    if(key && (k.includes(key) || key.includes(k))) return map[key];
+  }
+  return null;
+}
+function rememberVendorLedger(name, ledger) {
+  const k = vendorKey(name);
+  if(!k || !ledger) return;
+  if(!appState.vendorLedgerMap) appState.vendorLedgerMap = {};
+  appState.vendorLedgerMap[k] = ledger;
+}
+function forgetVendorLedger(key) {
+  if(!appState.vendorLedgerMap) return;
+  delete appState.vendorLedgerMap[key];
+  saveAndSync();
+  renderVendorRules();
+}
+
+// ── 商家账本规则管理界面 ──────────────────────────────
+function openVendorRules() {
+  renderVendorRules();
+  document.getElementById('vendor-rules-modal').classList.add('open');
+}
+function renderVendorRules() {
+  const map = appState.vendorLedgerMap || {};
+  const entries = Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0]));
+  const listEl = document.getElementById('vendor-rules-list');
+  if(!listEl) return;
+  if(entries.length === 0) {
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--text3);padding:8px 0;">还没有记住任何商家规则。在记账或导入时选择账本，系统会自动记住。</div>';
+    return;
+  }
+  listEl.innerHTML = entries.map(([key,ledger])=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);">
+      <div style="flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(key)}</div>
+      <select id="vr-${esc(key)}" onchange="updateVendorRule('${esc(key)}')" style="font-size:12px;padding:3px 6px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
+        ${FIN_LEDGERS.map(l=>`<option ${l===ledger?'selected':''}>${l}</option>`).join('')}
+      </select>
+      <span style="cursor:pointer;opacity:0.6;font-size:13px;" onclick="forgetVendorLedger('${esc(key)}')" title="删除此规则">🗑</span>
+    </div>`).join('');
+}
+function updateVendorRule(key) {
+  const sel = document.getElementById('vr-'+key);
+  if(!sel || !appState.vendorLedgerMap) return;
+  appState.vendorLedgerMap[key] = sel.value;
+  saveAndSync();
+}
+
 // ── 结算单导出 ──────────────────────────────────
 function downloadFile(filename, content, mime) {
   const blob = new Blob([content], { type: mime || 'text/csv;charset=utf-8;' });
@@ -2307,7 +2376,8 @@ function openBillModal(prefill) {
   document.getElementById('b-cat').value = prefill?.cat && FIN_CATS.includes(prefill.cat) ? prefill.cat : '其他';
   document.getElementById('b-note').value = prefill?.note ?? '';
   whoSel.value = prefill?.who || 'Jin';
-  document.getElementById('b-ledger').value = prefill?.ledger && FIN_LEDGERS.includes(prefill.ledger) ? prefill.ledger : '个人';
+  const rememberedLedger = !prefill?.ledger ? lookupVendorLedger(prefill?.note) : null;
+  document.getElementById('b-ledger').value = prefill?.ledger && FIN_LEDGERS.includes(prefill.ledger) ? prefill.ledger : (rememberedLedger || '个人');
   document.getElementById('b-hst').value = prefill?.hst ?? '';
   const dw = document.getElementById('b-dup-warning');
   if(prefill?.dupWarning) { dw.textContent = prefill.dupWarning; dw.style.display = 'block'; }
@@ -2349,6 +2419,7 @@ function saveBill() {
   };
   if(!appState.bills) appState.bills = [];
   toggleWatchlist(bill.note, bill.cat, document.getElementById('b-watchlist').checked);
+  rememberVendorLedger(bill.note, bill.ledger);
   if(editId) {
     const ex = appState.bills.find(b=>b.id===editId);
     if(ex) Object.assign(ex, bill);
@@ -2617,18 +2688,35 @@ async function handleStatementUpload(event) {
 
 function renderStatementReview() {
   const listEl = document.getElementById('statement-list');
+  const fallbackLedger = document.getElementById('statement-ledger').value || '个人';
+  // 保留用户已手动调整过的逐行选择（重新渲染时不覆盖）
+  pendingStatementTxns.forEach((t,i)=>{
+    const existingLedgerSel = document.getElementById('stx-ledger-'+i);
+    if(existingLedgerSel) t.__userLedger = existingLedgerSel.value;
+    const existingCatSel = document.getElementById('stx-cat-'+i);
+    if(existingCatSel) t.__userCat = existingCatSel.value;
+    const existingCb = document.getElementById('stx-'+i);
+    if(existingCb) t.__userChecked = existingCb.checked;
+  });
   listEl.innerHTML = pendingStatementTxns.map((t,i)=>{
     const dup = findDupBill(t.amount, t.date);
     t.__dup = !!dup;
+    // 账本优先级：用户已手动选过 > CSV/Cowork自带的ledger字段 > 商家记忆表 > 本批默认账本
+    const suggestedLedger = t.__userLedger || ((t.ledger && FIN_LEDGERS.includes(t.ledger)) ? t.ledger : (lookupVendorLedger(t.merchant) || fallbackLedger));
+    const suggestedCat = t.__userCat || t.cat;
+    const isChecked = t.__userChecked !== undefined ? t.__userChecked : !dup;
     return `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);${dup?'background:var(--warn-bg);border-radius:8px;padding-left:6px;padding-right:6px;':''}">
-      <input type="checkbox" id="stx-${i}" ${dup?'':'checked'} style="flex-shrink:0;width:16px;height:16px;" />
+      <input type="checkbox" id="stx-${i}" ${isChecked?'checked':''} style="flex-shrink:0;width:16px;height:16px;" />
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.merchant||'未知商家'}</div>
         <div style="font-size:11px;color:var(--text3);">${t.date||'日期未知'}${dup?` · <span style="color:var(--warn-text);font-weight:600;">疑似重复：${dup.date} ${dup.note||dup.cat}</span>`:''}</div>
       </div>
       <select id="stx-cat-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:90px;">
-        ${FIN_CATS.map(c=>`<option ${c===t.cat?'selected':''}>${c}</option>`).join('')}
+        ${FIN_CATS.map(c=>`<option ${c===suggestedCat?'selected':''}>${c}</option>`).join('')}
+      </select>
+      <select id="stx-ledger-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:100px;" title="此商家的账本">
+        ${FIN_LEDGERS.map(l=>`<option ${l===suggestedLedger?'selected':''}>${l}</option>`).join('')}
       </select>
       <div style="font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;">$${Number(t.amount||0).toFixed(2)}${Number(t.hst)>0?`<div style="font-size:10px;font-weight:400;color:var(--text3);text-align:right;">HST $${Number(t.hst).toFixed(2)}</div>`:''}</div>
     </div>`;}).join('');
@@ -2644,14 +2732,18 @@ function confirmStatementImport() {
     const cb = document.getElementById('stx-'+i);
     if(!cb || !cb.checked) return;
     const catSel = document.getElementById('stx-cat-'+i);
+    const ledgerSel = document.getElementById('stx-ledger-'+i);
+    const note = t.merchant || '';
+    const ledger = ledgerSel ? ledgerSel.value : (document.getElementById('statement-ledger').value || '个人');
+    rememberVendorLedger(note, ledger);
     appState.bills.push({
       id: uid(),
       amount: Number(t.amount)||0,
       date: t.date || new Date().toLocaleDateString('en-CA'),
       cat: catSel ? catSel.value : (t.cat||'其他'),
-      note: t.merchant || '',
+      note: note,
       who: 'Jin',
-      ledger: document.getElementById('statement-ledger').value || '个人',
+      ledger: ledger,
       hst: Number(t.hst) || 0,
       receiptId: '',
       created: new Date().toISOString()
@@ -3221,14 +3313,25 @@ function clearAIChat() {
   </div>
 </div>
 
+<div class="modal-wrap" id="vendor-rules-modal">
+  <div class="modal" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column;">
+    <div class="modal-title">📋 商家账本规则</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">记账或导入账单时，选择账本会自动记住该商家以后的归类。这里可以查看、调整或删除已记住的规则。</p>
+    <div id="vendor-rules-list" style="flex:1;overflow-y:auto;min-height:80px;max-height:55vh;"></div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn btn-primary" onclick="document.getElementById('vendor-rules-modal').classList.remove('open')">关闭</button>
+    </div>
+  </div>
+</div>
+
 <!-- PDF账单审核 Modal -->
 <div class="modal-wrap" id="statement-modal">
   <div class="modal" style="max-width:560px;max-height:85vh;display:flex;flex-direction:column;">
     <div class="modal-title">📄 账单识别结果</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">请核对以下交易，取消勾选不需要的，确认后批量记账。疑似重复的交易已自动取消勾选。</p>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">请核对以下交易，取消勾选不需要的，确认后批量记账。疑似重复的交易已自动取消勾选。账本已根据商家记忆自动预选，可逐行调整。</p>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
-      <label style="font-size:12px;color:var(--text2);flex-shrink:0;">本批账本：</label>
-      <select id="statement-ledger" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
+      <label style="font-size:12px;color:var(--text2);flex-shrink:0;">默认账本（无记忆时使用）：</label>
+      <select id="statement-ledger" onchange="renderStatementReview()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
         <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
         <option>出租房45</option><option>出租房15</option><option>住宅共用</option><option>待定</option>
       </select>
