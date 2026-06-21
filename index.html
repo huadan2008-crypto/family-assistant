@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.9 · 2026-06-21</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.10 · 2026-06-21</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -338,6 +338,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <button class="btn" onclick="openLedgerBatch()">🏷 批量设置账本</button>
       <button class="btn" onclick="openVendorRules()">📋 商家账本规则</button>
       <button class="btn" onclick="openExportModal()">📊 导出结算单</button>
+      <button class="btn" style="color:var(--danger-text);" onclick="openClearBillsModal()">🗑 清空账单数据</button>
     </div>
 
     <div id="receipt-processing" style="display:none;background:var(--accent-bg);border-radius:var(--radius);padding:12px 14px;margin-bottom:12px;font-size:13px;color:var(--accent-text);">
@@ -2234,6 +2235,30 @@ function updateVendorRule(key) {
   saveAndSync();
 }
 
+// ── 清空账单数据（保留商家规则与提醒清单） ─────────────
+function openClearBillsModal() {
+  const bills = appState.bills || [];
+  const count = bills.length;
+  const total = bills.reduce((s,b)=>s+Number(b.amount||0),0);
+  const ruleCount = Object.keys(appState.vendorLedgerMap||{}).length;
+  const watchCount = (appState.recurringWatchlist||[]).length;
+  document.getElementById('clear-bills-summary').innerHTML = `
+    当前共有 <b>${count}</b> 笔账单（合计 $${total.toFixed(2)}）将被清空。<br>
+    「商家账本规则」<b>${ruleCount}</b> 条、「固定支出提醒」<b>${watchCount}</b> 条将被保留。`;
+  document.getElementById('clear-bills-confirm-text').value = '';
+  document.getElementById('clear-bills-modal').classList.add('open');
+}
+function executeClearBills() {
+  const confirmText = document.getElementById('clear-bills-confirm-text').value.trim();
+  if(confirmText !== '确认清空') { alert('请输入「确认清空」以继续'); return; }
+  appState.bills = [];
+  // 商家账本规则（vendorLedgerMap）和固定支出提醒（recurringWatchlist）保留，不清空
+  document.getElementById('clear-bills-modal').classList.remove('open');
+  saveAndSync();
+  renderFinance();
+  toast('✅ 账单数据已清空，规则已保留');
+}
+
 // ── 结算单导出 ──────────────────────────────────
 function downloadFile(filename, content, mime) {
   const blob = new Blob([content], { type: mime || 'text/csv;charset=utf-8;' });
@@ -3320,6 +3345,26 @@ function clearAIChat() {
     <div id="vendor-rules-list" style="flex:1;overflow-y:auto;min-height:80px;max-height:55vh;"></div>
     <div class="modal-actions" style="margin-top:12px;">
       <button class="btn btn-primary" onclick="document.getElementById('vendor-rules-modal').classList.remove('open')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-wrap" id="clear-bills-modal">
+  <div class="modal">
+    <div class="modal-title" style="color:var(--danger-text);">🗑 清空账单数据</div>
+    <div id="clear-bills-summary" style="font-size:13px;color:var(--text2);margin-bottom:12px;line-height:1.6;"></div>
+    <div style="background:var(--warn-bg);color:var(--warn-text);border-radius:8px;padding:10px 12px;font-size:12px;margin-bottom:14px;line-height:1.6;">
+      ⚠️ 此操作会清空所有账单记录（bills），但<b>保留</b>「商家账本规则」和「固定支出提醒清单」。<br>
+      清空后会立即同步到 Google Drive，<b>无法撤销</b>。建议先确认 Drive 上已有备份。
+    </div>
+    <div class="form-row">
+      <div style="flex-basis:100%"><label class="fl">输入「确认清空」以继续</label>
+        <input type="text" id="clear-bills-confirm-text" placeholder="确认清空" />
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="document.getElementById('clear-bills-modal').classList.remove('open')">取消</button>
+      <button class="btn btn-primary" style="background:var(--danger);" onclick="executeClearBills()">永久清空账单</button>
     </div>
   </div>
 </div>
