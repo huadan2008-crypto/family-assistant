@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.11 · 2026-06-22</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.12 · 2026-06-22</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -1048,6 +1048,63 @@ function render() {
 function setEl(id,val){const e=document.getElementById(id);if(e)e.textContent=val;}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
+// ── 灵活日期解析（CSV导入用）──────────────────────────
+// 银行/信用卡导出的CSV日期格式五花八门：2026-03-21 / 03/21/2026 / 21 Mar 2026 / Mar 21, 2026 等
+// 之前的实现先用过窄的正则筛选（只认纯数字格式），筛掉了"21 Mar 2026"这种带英文月份缩写的格式，
+// 导致日期解析失败、全部账单日期变空，进而被错误归到同一个月。
+// 现在直接尝试多种解析路径，不再用正则前置过滤。
+// ── 完整CSV解析（正确处理引号内的换行符和逗号）──────────
+// 银行账单CSV里的地址字段常包含换行（如 "OTTAWA\nON"），用简单的 text.split('\n')
+// 按行切分会把这种字段从中间切断，导致后面所有列错位（日期列读出来变成地址碎片）。
+// 这里实现一个状态机式的逐字符解析，正确识别"引号内的换行/逗号不算分隔符"。
+function parseCSVText(text) {
+  const rows = [];
+  let row = [], field = '', inQuotes = false;
+  for(let i=0; i<text.length; i++) {
+    const c = text[i];
+    if(inQuotes) {
+      if(c === '"') {
+        if(text[i+1] === '"') { field += '"'; i++; } // 转义的双引号
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if(c === '"') inQuotes = true;
+      else if(c === ',') { row.push(field); field = ''; }
+      else if(c === '\n' || c === '\r') {
+        if(c === '\r' && text[i+1] === '\n') i++; // 跳过 \r\n 中的 \n
+        row.push(field); field = '';
+        if(row.some(f=>f.trim()!=='')) rows.push(row); // 跳过空行
+        row = [];
+      } else field += c;
+    }
+  }
+  if(field !== '' || row.length) { row.push(field); if(row.some(f=>f.trim()!=='')) rows.push(row); }
+  return rows;
+}
+
+function parseFlexibleDate(raw) {
+  if(!raw) return '';
+  const s = raw.trim();
+
+  // 路径1：DD/MM/YYYY 或 DD-MM-YYYY（日在前，很多加拿大/欧式信用卡账单用这种）
+  // 只有当第一段 >12 时才能确定是"日"，避免和 MM/DD/YYYY 混淆
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m) {
+    const a = parseInt(m[1]), b = parseInt(m[2]), y = m[3];
+    if(a > 12 && b <= 12) { // 第一段明显是"日"
+      const d2 = new Date(`${y}-${String(b).padStart(2,'0')}-${String(a).padStart(2,'0')}`);
+      if(!isNaN(d2)) return d2.toLocaleDateString('en-CA');
+    }
+  }
+
+  // 路径2：交给浏览器原生 Date 解析——能正确处理 "21 Mar 2026"、"Mar 21, 2026"、
+  // "2026-03-21"、"03/21/2026" 等绝大多数常见格式
+  const d = new Date(s);
+  if(!isNaN(d)) return d.toLocaleDateString('en-CA');
+
+  return ''; // 实在解析不出来，留空，导入审核界面会用「日期未知」明确提示，而不是悄悄归错月份
+}
+
 function whoBadges(who) {
   const names = Array.isArray(who)?who:[who];
   if(names.length===1&&names[0]==='全家') return `<span class="badge b-info">全家</span>`;
@@ -1439,9 +1496,10 @@ async function handleCSVUpload(event) {
     let rows = [];
 
     if(file.name.endsWith('.csv')) {
-      // CSV 解析
-      const lines = text.split('\n').filter(l=>l.trim());
-      const header = lines[0].split(',').map(h=>h.replace(/"/g,'').trim().toLowerCase());
+      // CSV 解析（用正确处理引号内换行/逗号的解析器，避免地址字段换行导致行错位）
+      const allRows = parseCSVText(text);
+      if(allRows.length < 2) throw new Error('CSV文件没有数据行');
+      const header = allRows[0].map(h=>h.replace(/"/g,'').trim().toLowerCase());
       // 常见列名映射（包含 Cowork/家庭助手 自身导出格式：date,note,amount,hst,cat,ledger,who,receiptId）
       const col = (names) => { for(const n of names) { const i=header.findIndex(h=>h.includes(n)); if(i>=0) return i; } return -1; };
       const dateCol   = col(['date','transaction date','trans date','posted']);
@@ -1451,18 +1509,12 @@ async function handleCSVUpload(event) {
       const catCol    = col(['cat','category','分类']);
       const ledgerCol = col(['ledger','账本']);
 
-      for(let i=1;i<lines.length;i++) {
-        const cells = lines[i].match(/(".*?"|[^,]+)/g)||lines[i].split(',');
-        const clean = cells.map(c=>c.replace(/^"|"$/g,'').trim());
+      for(let i=1;i<allRows.length;i++) {
+        const clean = allRows[i].map(c=>c.trim());
         const amount = parseFloat((clean[amtCol]||'').replace(/[$,\s]/g,''));
         if(!amount || amount <= 0) continue;  // 跳过收入/还款
-        const dateRaw = clean[dateCol]||'';
-        const dateMatch = dateRaw.match(/(\d{4}[-/]\d{1,2}[-/]\d{1,2})|(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/);
-        let date = '';
-        if(dateMatch) {
-          const d = new Date(dateRaw);
-          if(!isNaN(d)) date = d.toLocaleDateString('en-CA');
-        }
+        const dateRaw = (clean[dateCol]||'').trim();
+        const date = parseFlexibleDate(dateRaw);
         const merchant = clean[descCol]||'';
         const hst = hstCol>=0 ? (parseFloat((clean[hstCol]||'').replace(/[$,\s]/g,''))||0) : 0;
         const catRaw = catCol>=0 ? clean[catCol] : '';
