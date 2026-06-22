@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.10 · 2026-06-21</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.11 · 2026-06-22</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -834,6 +834,33 @@ function getState() { return appState; }
 function saveState(s) { appState = s; }
 function uid() { return Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 
+// ── 带超时保护的 Claude API 调用 ───────────────────────
+// 所有对 api.anthropic.com 的请求都走这里：避免网络异常导致请求无限期挂起，
+// 进而让"AI 正在处理…"的提示永远卡住、界面假死却不报错。
+async function callClaudeAPI(body, timeoutMs = 60000) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(()=>controller.abort(), timeoutMs);
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': getApiKey(),
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify(body)
+    });
+    return await response.json();
+  } catch(e) {
+    if(e.name === 'AbortError') throw new Error(`请求超时（超过${Math.round(timeoutMs/1000)}秒未响应），请检查网络后重试`);
+    throw e;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // ── Member picker ─────────────────────────────────
 function buildPicker(containerId) {
   const el = document.getElementById(containerId);
@@ -1448,13 +1475,8 @@ async function handleCSVUpload(event) {
       // Excel → 用 AI 解析（Excel 格式复杂，发给 Claude 处理）
       proc.textContent = '🤖 Excel 格式，AI 正在解析…';
       const base64 = btoa(unescape(encodeURIComponent(text)));
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:2048,
-          messages:[{role:'user', content:`这是一份Excel账单的文本内容。提取所有消费交易，返回纯JSON数组：[{"date":"YYYY-MM-DD","merchant":"商家名","amount":数字,"hst":0,"cat":"分类","ledger":"账本或空字符串"}]\n分类从这里选：${FIN_CATS.join(',')}\n账本从这里选（如果文本中没有明确账本信息，留空字符串，不要猜测）：${FIN_LEDGERS.join(',')}\n\n${text.slice(0,3000)}`}] })
-      });
-      const data = await response.json();
+      const data = await callClaudeAPI({ model:'claude-haiku-4-5-20251001', max_tokens:2048,
+        messages:[{role:'user', content:`这是一份Excel账单的文本内容。提取所有消费交易，返回纯JSON数组：[{"date":"YYYY-MM-DD","merchant":"商家名","amount":数字,"hst":0,"cat":"分类","ledger":"账本或空字符串"}]\n分类从这里选：${FIN_CATS.join(',')}\n账本从这里选（如果文本中没有明确账本信息，留空字符串，不要猜测）：${FIN_LEDGERS.join(',')}\n\n${text.slice(0,3000)}`}] });
       rows = JSON.parse(data.content[0].text.replace(/\`\`\`json|\`\`\`/g,'').trim());
     }
 
@@ -1534,20 +1556,15 @@ async function handleRecipePhoto(event) {
       r.onerror = ()=>rej(new Error('读取图片失败'));
       r.readAsDataURL(file);
     });
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body: JSON.stringify({
-        model:'claude-haiku-4-5-20251001', max_tokens:1500,
-        messages:[{role:'user', content:[
-          {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
-          {type:'text', text:`识别这张菜谱图片，返回纯JSON（不要markdown）：
+    const data = await callClaudeAPI({
+      model:'claude-haiku-4-5-20251001', max_tokens:1500,
+      messages:[{role:'user', content:[
+        {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
+        {type:'text', text:`识别这张菜谱图片，返回纯JSON（不要markdown）：
 {"name":"菜名","cuisine":"中餐/西餐/日韩/烘焙/其他","ingredients":"每行一个食材和用量，用\\n分隔","steps":"做法步骤，用\\n分隔"}
 如果是网页截图或印刷菜谱，照原文提取；手写的尽量辨认。`}
-        ]}]
-      })
+      ]}]
     });
-    const data = await response.json();
     if(!data.content||!data.content[0]) throw new Error('识别失败');
     const parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
     proc.textContent = '📤 正在保存图片…';
@@ -1689,18 +1706,13 @@ async function handlePantryPhoto(event) {
       r.onerror = ()=>rej(new Error('读取图片失败'));
       r.readAsDataURL(file);
     });
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body: JSON.stringify({
-        model:'claude-haiku-4-5-20251001', max_tokens:800,
-        messages:[{role:'user', content:[
-          {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
-          {type:'text', text:'识别照片里的食材（冰箱/储藏柜/桌面食材），返回纯JSON字符串数组（不要markdown）：["西红柿","鸡蛋","排骨"]。只列食材名，不写数量。'}
-        ]}]
-      })
+    const data = await callClaudeAPI({
+      model:'claude-haiku-4-5-20251001', max_tokens:800,
+      messages:[{role:'user', content:[
+        {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
+        {type:'text', text:'识别照片里的食材（冰箱/储藏柜/桌面食材），返回纯JSON字符串数组（不要markdown）：["西红柿","鸡蛋","排骨"]。只列食材名，不写数量。'}
+      ]}]
     });
-    const data = await response.json();
     const items = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
     proc.style.display = 'none';
     // 与现有合并去重后让用户确认
@@ -1827,12 +1839,7 @@ totalValue 取账户总净值（Total Account Value / Net Asset Value / 总资�
       ? [{type:'document', source:{type:'base64', media_type:'application/pdf', data:base64}}, {type:'text', text:promptText}]
       : [{type:'image', source:{type:'base64', media_type:file.type, data:base64}}, {type:'text', text:promptText}];
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{'Content-Type':'application/json','x-api-key':getApiKey(),'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-      body: JSON.stringify({ model:'claude-sonnet-4-6', max_tokens:1024, messages:[{role:'user', content:contentBlock}] })
-    });
-    const data = await response.json();
+    const data = await callClaudeAPI({ model:'claude-sonnet-4-6', max_tokens:1024, messages:[{role:'user', content:contentBlock}] });
     if(!data.content||!data.content[0]) throw new Error('识别失败：'+JSON.stringify(data).slice(0,120));
     let parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
     if(!Array.isArray(parsed)) parsed = [parsed];
@@ -2536,29 +2543,19 @@ async function handleReceiptUpload(event) {
     });
 
     // Claude vision
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'x-api-key': getApiKey(),
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-access':'true'
-      },
-      body: JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
-        max_tokens:300,
-        messages:[{role:'user', content:[
-          {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
-          {type:'text', text:`识别这张收据，返回纯JSON（不要任何其他文字、不要markdown）：
+    const data = await callClaudeAPI({
+      model:'claude-haiku-4-5-20251001',
+      max_tokens:300,
+      messages:[{role:'user', content:[
+        {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
+        {type:'text', text:`识别这张收据，返回纯JSON（不要任何其他文字、不要markdown）：
 {"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "hst": 收据上标注的HST或GST税额总数字（没有就是0）, "cat": "从这些分类中选一个：${FIN_CATS.join('、')}", "items": [{"name":"单项商品名","amount":税前价格数字,"taxable":true或false}]}
 规则：
 - items：购物类收据（超市、Costco、Canadian Tire等）逐项列出每个商品；单一服务账单（油费、餐费）items留空数组
 - taxable：该商品是否需缴HST（安省食品杂货大多免税false，日用品电器等为true）；以收据上的税码标记为准
 - 如果某项看不清就用null。日期看不清就用null。`}
-        ]}]
-      })
+      ]}]
     });
-    const data = await response.json();
     if(!data.content || !data.content[0]) throw new Error('AI识别失败：' + JSON.stringify(data).slice(0,100));
     let parsed;
     try {
@@ -2657,8 +2654,6 @@ async function handleStatementUpload(event) {
   const pdfFileName = `账单_${new Date().toLocaleDateString('en-CA')}_${file.name}`;
   const pdfYearMonth = new Date().toLocaleDateString('en-CA').slice(0,7);
   proc.textContent = '🤖 AI 正在解析账单，交易较多时可能需要半分钟…';
-  // 归档 PDF（非阻塞）
-  archivePDFToDrive(base64, pdfFileName, pdfYearMonth);
 
   try {
     const base64 = await new Promise((res,rej)=>{
@@ -2668,20 +2663,15 @@ async function handleStatementUpload(event) {
       r.readAsDataURL(file);
     });
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'x-api-key': getApiKey(),
-        'anthropic-version':'2023-06-01',
-        'anthropic-dangerous-direct-browser-access':'true'
-      },
-      body: JSON.stringify({
-        model:'claude-sonnet-4-6',
-        max_tokens:4096,
-        messages:[{role:'user', content:[
-          {type:'document', source:{type:'base64', media_type:'application/pdf', data:base64}},
-          {type:'text', text:`这是一份账单/信用卡月结单。提取其中所有消费交易，返回纯JSON数组（不要任何其他文字、不要markdown代码块）：
+    // 归档 PDF（非阻塞，失败不影响解析流程）
+    archivePDFToDrive(base64, pdfFileName, pdfYearMonth);
+
+    const data = await callClaudeAPI({
+      model:'claude-sonnet-4-6',
+      max_tokens:4096,
+      messages:[{role:'user', content:[
+        {type:'document', source:{type:'base64', media_type:'application/pdf', data:base64}},
+        {type:'text', text:`这是一份账单/信用卡月结单。提取其中所有消费交易，返回纯JSON数组（不要任何其他文字、不要markdown代码块）：
 [{"date":"YYYY-MM-DD","merchant":"商家名","amount":金额数字,"hst":HST或GST税额数字,"cat":"分类"}]
 
 规则：
@@ -2690,10 +2680,8 @@ async function handleStatementUpload(event) {
 - 金额用正数
 - hst：账单上明确标注的HST/GST税额（如电话费、水电账单上的税额行）；信用卡月结单逐笔交易通常不显示税额，此时hst填0
 - 如果是电话费/网费这类单一账单（不是逐笔交易的月结单），就返回一条记录，金额是本期应付总额`}
-        ]}]
-      })
+      ]}]
     });
-    const data = await response.json();
     if(!data.content || !data.content[0]) throw new Error('AI解析失败：' + JSON.stringify(data).slice(0,120));
 
     let txns;
@@ -2982,23 +2970,13 @@ function buildSystemPrompt() {
 async function callClaude(userMessage) {
   aiHistory.push({role:'user', content: userMessage});
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method:'POST',
-    headers:{
-      'Content-Type':'application/json',
-      'x-api-key': getApiKey(),
-      'anthropic-version':'2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model:'claude-haiku-4-5-20251001',
-      max_tokens:1024,
-      system: buildSystemPrompt(),
-      messages: aiHistory
-    })
+  const data = await callClaudeAPI({
+    model:'claude-haiku-4-5-20251001',
+    max_tokens:1024,
+    system: buildSystemPrompt(),
+    messages: aiHistory
   });
 
-  const data = await response.json();
   if(!data.content||!data.content[0]) throw new Error(JSON.stringify(data));
   const text = data.content[0].text;
   aiHistory.push({role:'assistant', content: text});
