@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.15 · 2026-06-22</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v4.0 · 2026-06-22</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -338,6 +338,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <button class="btn" onclick="openLedgerBatch()">🏷 批量设置账本</button>
       <button class="btn" onclick="openVendorRules()">📋 商家账本规则</button>
       <button class="btn" onclick="openTrendModal()">📈 消费趋势</button>
+      <button class="btn" id="archive-queue-btn" onclick="openArchiveQueue()">📁 待归档</button>
       <button class="btn" onclick="openExportModal()">📊 导出结算单</button>
       <button class="btn" style="color:var(--danger-text);" onclick="openClearBillsModal()">🗑 清空账单数据</button>
     </div>
@@ -1373,6 +1374,11 @@ function renderFinance() {
   const listEl = document.getElementById('fin-bill-list');
   const listBills = selCat==='__all__' ? monthBills : monthBills.filter(b=>b.cat===selCat);
   checkRecurringBills();
+  const archiveQueueBtn = document.getElementById('archive-queue-btn');
+  if(archiveQueueBtn) {
+    const pendingCount = getPendingArchiveBills().length;
+    archiveQueueBtn.textContent = pendingCount > 0 ? `📁 待归档 (${pendingCount})` : '📁 待归档';
+  }
   document.getElementById('fin-list-label').textContent = selCat==='__all__' ? '本月账单明细' : `本月账单明细 · ${selCat}`;
   const sortedBills = [...listBills].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
   listEl.innerHTML = sortedBills.length === 0
@@ -1381,11 +1387,12 @@ function renderFinance() {
         const c = FIN_CAT_COLORS[b.cat]||'#6B7280';
         const whoName = b.who || '';
         const needsProof = b.proofStatus === 'needs_proof';
+        const pendingArchive = b.archiveStatus === 'pending';
         return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);${needsProof?'background:var(--accent-bg);border-radius:8px;padding-left:6px;padding-right:6px;':''}">
           <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;"></div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:14px;color:var(--text);">${b.note||b.cat}</div>
-            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.hst?' · HST $'+Number(b.hst).toFixed(2):''}${b.receiptId?' · 📎':''}${b.ledger&&b.ledger!=='个人'?` · <span style="color:${getLedgerColor(b.ledger)};font-weight:600;">${b.ledger}</span>`:''}${needsProof?` · <span style="color:var(--accent-text);font-weight:600;">📎 需要凭证</span>`:''}</div>
+            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.hst?' · HST $'+Number(b.hst).toFixed(2):''}${b.receiptId?' · 📎':''}${b.ledger&&b.ledger!=='个人'?` · <span style="color:${getLedgerColor(b.ledger)};font-weight:600;">${b.ledger}</span>`:''}${needsProof?` · <span style="color:var(--accent-text);font-weight:600;">📎 需要凭证</span>`:''}${pendingArchive?` · <span style="color:var(--text2);">📁 待归档</span>`:''}</div>
           </div>
           <div style="font-size:15px;font-weight:600;color:var(--text);">$${Number(b.amount).toFixed(2)}</div>
           ${needsProof?`<button onclick="useAsProof('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--accent-text);padding:4px 6px;font-weight:600;white-space:nowrap;" title="没有原始收据时，用这笔信用卡账单本身作为凭证归档">用作凭证</button>`:''}
@@ -1426,7 +1433,7 @@ function renderReceiptItems() {
 }
 
 function confirmReceiptItems() {
-  const { parsed, billDate, receiptId, base64, mimeType } = pendingReceipt;
+  const { parsed, billDate, receiptId } = pendingReceipt;
   const items = parsed.items;
   // 按 账本+类别 分组
   const groups = {};
@@ -1469,33 +1476,37 @@ function confirmReceiptItems() {
       dup.hst = totalHst;
       dup.receiptId = receiptId || dup.receiptId;
       dup.proofStatus = 'has_proof';
+      if(receiptId) { dup.archiveStatus = 'pending'; dup.driveFileId = receiptId; }
       pendingReceipt = null;
       document.getElementById('receipt-items-modal').classList.remove('open');
       saveAndSync();
       renderFinance();
       toast('✅ 已用收据信息更新原账单');
-      if(base64 && mimeType) archiveToAccountingFolder(base64, mimeType, dup.ledger, dup.date, '收据').catch(e=>console.error('归档失败',e));
       return;
     }
   }
 
+  // 一张收据可能被拆成多个账本——但 Drive 上只有一份原始文件，归档（移动文件）只能移到一个地方。
+  // 约定：只让金额最大的那个分组持有"待归档"标记和文件引用，其余分组只记录 receiptId 作参考链接，
+  // 不会在「待归档」页面里重复出现、也不会触发多次移动。
   let added = 0;
-  const archivedLedgers = new Set(); // 同一张收据可能拆给多个账本，每个账本只归档一份副本，不重复上传
+  const archiveHolderKey = groupList.length
+    ? groupList.reduce((max,g)=> (g.pre > max.pre ? g : max), groupList[0])
+    : null;
   groupList.forEach(g=>{
     const hst = Math.round(g.hst * (scale||0) * 100)/100;
     const namesStr = g.names.slice(0,3).join('、') + (g.names.length>3?` 等${g.names.length}项`:'');
+    const isArchiveHolder = g === archiveHolderKey;
     appState.bills.push({
       id: uid(), amount: Math.round((g.pre + hst)*100)/100, date: billDate,
       cat: g.cat, note: `${parsed.merchant||''} - ${namesStr}`,
       who: 'Jin', ledger: g.led, hst, receiptId: receiptId||'',
       proofStatus: receiptId ? 'has_proof' : undefined,
+      archiveStatus: (receiptId && isArchiveHolder) ? 'pending' : undefined,
+      driveFileId: (receiptId && isArchiveHolder) ? receiptId : undefined,
       created: new Date().toISOString()
     });
     added++;
-    if(base64 && mimeType && !archivedLedgers.has(g.led)) {
-      archivedLedgers.add(g.led);
-      archiveToAccountingFolder(base64, mimeType, g.led, billDate, '收据').catch(e=>console.error('归档失败',e));
-    }
   });
   pendingReceipt = null;
   document.getElementById('receipt-items-modal').classList.remove('open');
@@ -1505,7 +1516,7 @@ function confirmReceiptItems() {
 }
 
 function riFallbackSingle() {
-  const { parsed, billDate, receiptId, base64, mimeType } = pendingReceipt;
+  const { parsed, billDate, receiptId } = pendingReceipt;
   pendingReceipt = null;
   document.getElementById('receipt-items-modal').classList.remove('open');
   const dup = findDupBill(parsed.amount, billDate);
@@ -1523,15 +1534,15 @@ function riFallbackSingle() {
       dup.hst = parsed.hst != null ? Number(parsed.hst)||0 : dup.hst;
       dup.receiptId = receiptId || dup.receiptId;
       dup.proofStatus = 'has_proof'; // 用收据覆盖后，这笔账单现在有真实凭证支撑了
+      if(receiptId) { dup.archiveStatus = 'pending'; dup.driveFileId = receiptId; } // 待归档管理页面里批量处理移动
       rememberVendorLedger(dup.note, dup.ledger);
       saveAndSync();
       renderFinance();
       toast('✅ 已用收据信息更新原账单');
-      if(base64 && mimeType) archiveToAccountingFolder(base64, mimeType, dup.ledger, dup.date, '收据').catch(e=>console.error('归档失败',e));
       return;
     }
   }
-  pendingArchiveData = base64 ? { base64, mimeType, dateStr: billDate, prefix: '收据' } : null;
+  pendingArchiveData = receiptId ? { driveFileId: receiptId, dateStr: billDate } : null;
   openBillModal({
     amount: parsed.amount || '', date: billDate, cat: parsed.cat || '其他',
     note: parsed.merchant || '', hst: parsed.hst || '', receiptId: receiptId,
@@ -2560,6 +2571,107 @@ function forgetVendorLedger(key) {
 }
 
 // ── 商家账本规则管理界面 ──────────────────────────────
+// ── 待归档管理 ────────────────────────────────────
+function getPendingArchiveBills() {
+  return (appState.bills||[]).filter(b => b.archiveStatus === 'pending' && b.driveFileId);
+}
+
+function openArchiveQueue() {
+  document.getElementById('aq-batch-ledger').innerHTML = getAllLedgers().map(l=>`<option>${l}</option>`).join('');
+  renderArchiveQueue();
+  document.getElementById('archive-queue-modal').classList.add('open');
+}
+
+function renderArchiveQueue() {
+  const pending = getPendingArchiveBills();
+  const listEl = document.getElementById('archive-queue-list');
+  const statusEl = document.getElementById('archive-queue-status');
+  statusEl.textContent = '';
+  if(pending.length === 0) {
+    listEl.innerHTML = '<div style="font-size:13px;color:var(--text3);padding:20px 0;text-align:center;">没有待归档的账单，都已经整理好了 👍</div>';
+    document.getElementById('archive-queue-confirm-btn').style.display = 'none';
+    return;
+  }
+  document.getElementById('archive-queue-confirm-btn').style.display = '';
+  listEl.innerHTML = pending.map(b=>{
+    const isUndecided = b.ledger === '待定';
+    return `
+    <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);${isUndecided?'background:var(--accent-bg);border-radius:8px;padding-left:6px;padding-right:6px;':''}">
+      <input type="checkbox" id="aq-${b.id}" checked style="flex-shrink:0;width:16px;height:16px;" />
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(b.note||b.cat)}</div>
+        <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat} · $${Number(b.amount).toFixed(2)}${isUndecided?' · <span style="color:var(--accent-text);font-weight:600;">⚠️ 账本待定，归档前请先选择</span>':''}</div>
+      </div>
+      <select id="aq-ledger-${b.id}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:100px;">
+        ${getAllLedgers().map(l=>`<option ${l===b.ledger?'selected':''}>${l}</option>`).join('')}
+      </select>
+    </div>`;
+  }).join('');
+}
+
+function aqApplyBatchLedger() {
+  const ledger = document.getElementById('aq-batch-ledger').value;
+  getPendingArchiveBills().forEach(b=>{
+    const cb = document.getElementById('aq-'+b.id);
+    if(cb && cb.checked) {
+      const sel = document.getElementById('aq-ledger-'+b.id);
+      if(sel) sel.value = ledger;
+    }
+  });
+}
+
+async function runArchiveQueue() {
+  const pending = getPendingArchiveBills();
+  const toProcess = pending.filter(b => {
+    const cb = document.getElementById('aq-'+b.id);
+    return cb && cb.checked;
+  });
+  if(toProcess.length === 0) { alert('请先勾选要归档的账单'); return; }
+
+  const statusEl = document.getElementById('archive-queue-status');
+  const btn = document.getElementById('archive-queue-confirm-btn');
+  btn.disabled = true;
+  let okCount = 0, skipCount = 0, failCount = 0;
+
+  for(let i=0; i<toProcess.length; i++) {
+    const b = toProcess[i];
+    const ledgerSel = document.getElementById('aq-ledger-'+b.id);
+    const ledger = ledgerSel ? ledgerSel.value : b.ledger;
+    statusEl.textContent = `正在归档 ${i+1}/${toProcess.length}：${b.note||b.cat}…`;
+
+    if(ledger === '待定') { skipCount++; continue; } // 还没决定账本的，跳过，留在待归档列表里
+
+    if(ledger !== b.ledger) { b.ledger = ledger; rememberVendorLedger(b.note, ledger); }
+
+    try {
+      const result = await moveFileToAccountingFolder(b.driveFileId, ledger, b.date);
+      if(result.ok) {
+        b.archiveStatus = 'archived';
+        okCount++;
+      } else if(result.reason === '此账本不需要归档给会计师') {
+        // 账本改成了个人/住宅共用这类不需要凭证的，直接标记完成，文件留在暂存文件夹不动
+        b.archiveStatus = 'archived';
+        okCount++;
+      } else {
+        failCount++;
+        console.error('归档失败:', b.note, result.reason);
+      }
+    } catch(e) {
+      failCount++;
+      console.error('归档出错:', b.note, e);
+    }
+  }
+
+  saveAndSync();
+  renderFinance();
+  renderArchiveQueue();
+  btn.disabled = false;
+  statusEl.innerHTML = `✅ 完成：成功归档 ${okCount} 笔` +
+    (skipCount > 0 ? `，${skipCount} 笔账本仍为"待定"已跳过（请先选好账本再归档）` : '') +
+    (failCount > 0 ? `，<span style="color:var(--warn-text);">${failCount} 笔失败（请检查网络后重试，详情见浏览器控制台）</span>` : '');
+}
+
+
 function openVendorRules() {
   renderVendorRules();
   document.getElementById('vendor-rules-modal').classList.add('open');
@@ -2874,6 +2986,14 @@ function saveBill() {
   if(!appState.bills) appState.bills = [];
   toggleWatchlist(bill.note, bill.cat, document.getElementById('b-watchlist').checked);
   rememberVendorLedger(bill.note, bill.ledger);
+  // 录入和归档解耦：这里只记录数据，不立即移动/上传文件到"会计师交接"文件夹。
+  // 有收据原图的（pendingArchiveData 不为空），标记为待归档，留给「📁 待归档」管理页面批量处理——
+  // 这样后续归档逻辑改动不需要重新拍照/重新走AI识别。
+  if(pendingArchiveData) {
+    bill.archiveStatus = 'pending';
+    bill.driveFileId = pendingArchiveData.driveFileId;
+  }
+  pendingArchiveData = null;
   if(editId) {
     const ex = appState.bills.find(b=>b.id===editId);
     if(ex) Object.assign(ex, bill);
@@ -2881,12 +3001,6 @@ function saveBill() {
     bill.id = uid();
     bill.created = new Date().toISOString();
     appState.bills.push(bill);
-  }
-  // 账本已确认，如果有暂存的原始文件（收据图片），现在归档一份到"会计师交接/账本/季度/"
-  if(pendingArchiveData) {
-    const { base64, mimeType, dateStr, prefix } = pendingArchiveData;
-    pendingArchiveData = null;
-    archiveToAccountingFolder(base64, mimeType, bill.ledger, dateStr || bill.date, prefix).catch(e=>console.error('归档失败',e));
   }
   document.getElementById('bill-modal').classList.remove('open');
   saveAndSync();
@@ -3014,6 +3128,33 @@ async function archiveToAccountingFolder(base64Data, mimeType, ledger, dateStr, 
   return (await res.json()).id;
 }
 
+// ── 批量归档（移动文件，不重新上传） ───────────────────
+// 这是"待归档"管理页面用的核心函数：文件已经在 Drive 的暂存文件夹里
+// （收据归档/年月/），归档只是把它从暂存文件夹"移动"到"会计师交接/账本/季度/"，
+// 用 Drive API 的 addParents/removeParents 更新文件元数据，不重新读取/编码/上传文件内容，
+// 所以代码改了归档逻辑也不需要重新拍照或重新走AI识别。
+async function moveFileToAccountingFolder(fileId, ledger, dateStr) {
+  if(!fileId) return { ok:false, reason:'没有文件ID' };
+  if(!ledgerNeedsProof(ledger)) return { ok:false, reason:'此账本不需要归档给会计师' };
+  const quarter = dateToQuarter(dateStr);
+  const targetFolderId = await getAccountingFolderId(ledger, quarter);
+  if(!targetFolderId) return { ok:false, reason:'无法创建/找到目标文件夹' };
+  // 查询文件当前所在的父文件夹，移动时需要同时声明 removeParents
+  const metaRes = await driveRequest(`https://www.googleapis.com/drive/v3/files/${fileId}?fields=parents,name`);
+  if(!metaRes) return { ok:false, reason:'查询文件信息失败（可能需要重新登录）' };
+  if(metaRes.status === 404) return { ok:false, reason:'原文件已不存在（可能已被移动或删除）' };
+  const metaData = await metaRes.json();
+  const oldParents = (metaData.parents || []).join(',');
+  if((metaData.parents||[]).includes(targetFolderId)) return { ok:true, alreadyThere:true }; // 已经在目标文件夹，无需重复移动
+  const moveRes = await driveRequest(
+    `https://www.googleapis.com/drive/v3/files/${fileId}?addParents=${targetFolderId}&removeParents=${oldParents}&fields=id,parents`,
+    { method:'PATCH' }
+  );
+  if(!moveRes) return { ok:false, reason:'移动文件失败（可能需要重新登录）' };
+  if(!moveRes.ok) return { ok:false, reason:`移动文件失败（状态码 ${moveRes.status}）` };
+  return { ok:true };
+}
+
 let receiptFolderId = null;
 
 async function findOrCreateReceiptFolder(yearMonth) {
@@ -3115,12 +3256,14 @@ async function handleReceiptUpload(event) {
     // Open modal with prefilled values for confirmation
     // 多单项收据 → 分账界面
     if(Array.isArray(parsed.items) && parsed.items.length > 1) {
-      pendingReceipt = { parsed, billDate, receiptId, base64, mimeType: file.type };
+      pendingReceipt = { parsed, billDate, receiptId };
       renderReceiptItems();
       return;
     }
     const dup = findDupBill(parsed.amount, billDate);
-    pendingArchiveData = { base64, mimeType: file.type, dateStr: billDate, prefix: '收据' };
+    // 文件已经上传到"收据归档/年月/"暂存文件夹（receiptId 就是 Drive 文件ID），
+    // 这里只记住这个文件ID，账本确定后归档阶段会用它去"移动"文件，不需要再传一次。
+    pendingArchiveData = receiptId ? { driveFileId: receiptId, yearMonth, dateStr: billDate } : null;
     openBillModal({
       amount: parsed.amount || '',
       date: billDate,
@@ -3945,6 +4088,28 @@ function clearAIChat() {
     <div class="modal-actions" style="margin-top:12px;">
       <button class="btn" onclick="document.getElementById('statement-modal').classList.remove('open')">取消</button>
       <button class="btn btn-primary" id="statement-confirm-btn" onclick="confirmStatementImport()">添加选中交易</button>
+    </div>
+  </div>
+</div>
+
+<!-- 待归档管理 Modal -->
+<div class="modal-wrap" id="archive-queue-modal">
+  <div class="modal" style="max-width:620px;max-height:90vh;display:flex;flex-direction:column;">
+    <div class="modal-title">📁 待归档</div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">
+      这里列出所有还没整理到「会计师交接」文件夹的账单。文件已经在 Google Drive 暂存文件夹里了，归档只是把它移动到正确的账本/季度文件夹，不会重新上传。
+    </p>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+      <label style="font-size:12px;color:var(--text2);">批量设为账本：</label>
+      <select id="aq-batch-ledger" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
+      </select>
+      <button class="btn btn-sm" onclick="aqApplyBatchLedger()">应用到已勾选</button>
+    </div>
+    <div id="archive-queue-list" style="flex:1;overflow-y:auto;min-height:120px;max-height:50vh;"></div>
+    <div id="archive-queue-status" style="font-size:12px;color:var(--text2);margin-top:8px;"></div>
+    <div class="modal-actions" style="margin-top:12px;">
+      <button class="btn" onclick="document.getElementById('archive-queue-modal').classList.remove('open')">关闭</button>
+      <button class="btn btn-primary" id="archive-queue-confirm-btn" onclick="runArchiveQueue()">归档已勾选项</button>
     </div>
   </div>
 </div>
