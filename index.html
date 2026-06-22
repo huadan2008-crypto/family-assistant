@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.12 · 2026-06-22</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.13 · 2026-06-22</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -616,7 +616,7 @@ const MEMBERS=[
 // ── State ─────────────────────────────────────────
 let accessToken = null;
 let driveFileId = null;
-let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[], recipes:[], pantry:[], shopping:[], investments:[], recurringWatchlist:[], vendorLedgerMap:{} };
+let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[], recipes:[], pantry:[], shopping:[], investments:[], recurringWatchlist:[], vendorLedgerMap:{}, customLedgers:[], catLedgerDefaults:{} };
 let currentFilter = 'all';
 let selectedMember = null;
 const pickerSel = {};
@@ -1267,6 +1267,18 @@ const FIN_CATS = ['Groceries','Dining','Hydro','Gas','Water & Waste','Internet',
 const FIN_CAT_COLORS = {'Groceries':'#0F6E56','Dining':'#BA7517','Hydro':'#185FA5','Gas':'#F59E0B','Water & Waste':'#0891B2','Internet':'#534AB7','Mobile':'#7C3AED','Mortgage Interest':'#993C1D','Property Tax':'#854F0B','Home Insurance':'#B45309','Repairs & Maintenance':'#D97706','Auto & Transport':'#D4537E','Education':'#639922','Medical':'#C2410C','Shopping':'#8B5CF6','Entertainment':'#0891B2','Travel':'#0369A1','Subscriptions':'#5B21B6','Other':'#6B7280'};
 const FIN_LEDGERS = ['个人','Guoqi Research','Green Ring','出租房45','出租房15','住宅共用','待定'];
 const FIN_LEDGER_COLORS = {'个人':'#6B7280','Guoqi Research':'#185FA5','Green Ring':'#0F6E56','出租房45':'#BA7517','出租房15':'#854F0B','住宅共用':'#534AB7','待定':'#DC2626'};
+const CUSTOM_LEDGER_PALETTE = ['#0E7490','#9333EA','#C026D3','#65A30D','#E11D48','#0284C7','#CA8A04'];
+
+// 获取所有账本（内置 + 用户手工新增的）。所有需要列出账本选项的地方都应调用这个函数，
+// 而不是直接用 FIN_LEDGERS，这样新增账本才能在全部位置自动生效。
+function getAllLedgers() {
+  return FIN_LEDGERS.concat(appState.customLedgers || []);
+}
+function getLedgerColor(ledger) {
+  if(FIN_LEDGER_COLORS[ledger]) return FIN_LEDGER_COLORS[ledger];
+  const idx = (appState.customLedgers||[]).indexOf(ledger);
+  return idx >= 0 ? CUSTOM_LEDGER_PALETTE[idx % CUSTOM_LEDGER_PALETTE.length] : '#6B7280';
+}
 let finViewMonth = null; // 'YYYY-MM' being viewed
 
 function finCurrentMonth() {
@@ -1363,7 +1375,7 @@ function renderFinance() {
           <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;"></div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:14px;color:var(--text);">${b.note||b.cat}</div>
-            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.hst?' · HST $'+Number(b.hst).toFixed(2):''}${b.receiptId?' · 📎':''}${b.ledger&&b.ledger!=='个人'?` · <span style="color:${FIN_LEDGER_COLORS[b.ledger]||'#888'};font-weight:600;">${b.ledger}</span>`:''}</div>
+            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.hst?' · HST $'+Number(b.hst).toFixed(2):''}${b.receiptId?' · 📎':''}${b.ledger&&b.ledger!=='个人'?` · <span style="color:${getLedgerColor(b.ledger)};font-weight:600;">${b.ledger}</span>`:''}</div>
           </div>
           <div style="font-size:15px;font-weight:600;color:var(--text);">$${Number(b.amount).toFixed(2)}</div>
           <button onclick="editBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">✏️</button>
@@ -1391,7 +1403,7 @@ function renderReceiptItems() {
         ${FIN_CATS.map(c=>`<option ${c===(parsed.cat||'其他')?'selected':''}>${c}</option>`).join('')}
       </select>
       <select id="ri-led-${i}" style="font-size:11px;padding:3px 4px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:104px;">
-        ${FIN_LEDGERS.map(l=>`<option ${l===(lookupVendorLedger(parsed.merchant)||'个人')?'selected':''}>${l}</option>`).join('')}
+        ${getAllLedgers().map(l=>`<option ${l===(lookupVendorLedger(parsed.merchant)||lookupCatLedgerDefault(it.cat||parsed.cat||'其他')||'个人')?'selected':''}>${l}</option>`).join('')}
       </select>
     </div>`).join('');
   document.getElementById('receipt-items-modal').classList.add('open');
@@ -1418,8 +1430,39 @@ function confirmReceiptItems() {
   const realHst = Number(parsed.hst||0);
   const scale = (calcHst > 0 && realHst > 0) ? realHst/calcHst : (realHst>0?0:1);
   if(!appState.bills) appState.bills = [];
+
+  const groupList = Object.values(groups);
+  // 收据总额（税前合计+HST）如果和某笔已有账单（通常是信用卡账单笼统录入的一整笔）金额+日期接近，
+  // 且这张收据只对应一个账本+分类组合（没有被拆成多笔不同账本/分类），
+  // 就用收据信息覆盖那笔已有账单，而不是新增一笔造成重复。
+  const totalHst = Math.round(realHst*100)/100;
+  const totalAmount = Math.round((groupList.reduce((s,g)=>s+g.pre,0) + totalHst)*100)/100;
+  const dup = groupList.length === 1 ? findDupBill(totalAmount, billDate) : null;
+
+  if(dup) {
+    const g = groupList[0];
+    const namesStr = g.names.slice(0,3).join('、') + (g.names.length>3?` 等${g.names.length}项`:'');
+    const ok = confirm(
+      `发现已有一笔疑似同一笔交易：\n${dup.date} 「${dup.note||dup.cat}」 $${Number(dup.amount).toFixed(2)} · ${dup.ledger||'个人'}\n\n` +
+      `用这张收据的信息覆盖它吗？\n商家：${parsed.merchant||'未知'} - ${namesStr} · 分类：${g.cat}\n\n` +
+      `（账本会保留原来的设置；选"取消"则按收据另外新增一笔）`
+    );
+    if(ok) {
+      dup.note = `${parsed.merchant||''} - ${namesStr}`;
+      dup.cat = g.cat;
+      dup.hst = totalHst;
+      dup.receiptId = receiptId || dup.receiptId;
+      pendingReceipt = null;
+      document.getElementById('receipt-items-modal').classList.remove('open');
+      saveAndSync();
+      renderFinance();
+      toast('✅ 已用收据信息更新原账单');
+      return;
+    }
+  }
+
   let added = 0;
-  Object.values(groups).forEach(g=>{
+  groupList.forEach(g=>{
     const hst = Math.round(g.hst * (scale||0) * 100)/100;
     const namesStr = g.names.slice(0,3).join('、') + (g.names.length>3?` 等${g.names.length}项`:'');
     appState.bills.push({
@@ -1441,6 +1484,26 @@ function riFallbackSingle() {
   pendingReceipt = null;
   document.getElementById('receipt-items-modal').classList.remove('open');
   const dup = findDupBill(parsed.amount, billDate);
+  if(dup) {
+    // 已有疑似同一笔交易（通常是信用卡账单录入时商家名不确定/笼统），收据数据更准确，
+    // 优先用收据信息覆盖已有账单，而不是创建重复的新账单
+    const ok = confirm(
+      `发现已有一笔疑似同一笔交易：\n${dup.date} 「${dup.note||dup.cat}」 $${Number(dup.amount).toFixed(2)} · ${dup.ledger||'个人'}\n\n` +
+      `用这张收据的信息覆盖它吗？\n商家：${parsed.merchant||'未知'} · 分类：${parsed.cat||'其他'} · HST：$${Number(parsed.hst||0).toFixed(2)}\n\n` +
+      `（账本会保留原来的设置，不会被收据覆盖；选"取消"则改为手动编辑）`
+    );
+    if(ok) {
+      dup.note = parsed.merchant || dup.note;
+      dup.cat = parsed.cat && FIN_CATS.includes(parsed.cat) ? parsed.cat : dup.cat;
+      dup.hst = parsed.hst != null ? Number(parsed.hst)||0 : dup.hst;
+      dup.receiptId = receiptId || dup.receiptId;
+      rememberVendorLedger(dup.note, dup.ledger);
+      saveAndSync();
+      renderFinance();
+      toast('✅ 已用收据信息更新原账单');
+      return;
+    }
+  }
   openBillModal({
     amount: parsed.amount || '', date: billDate, cat: parsed.cat || '其他',
     note: parsed.merchant || '', hst: parsed.hst || '', receiptId: receiptId,
@@ -1520,7 +1583,7 @@ async function handleCSVUpload(event) {
         const catRaw = catCol>=0 ? clean[catCol] : '';
         const cat = catRaw && FIN_CATS.includes(catRaw) ? catRaw : guessCat(merchant);
         const ledgerRaw = ledgerCol>=0 ? clean[ledgerCol] : '';
-        const ledger = ledgerRaw && FIN_LEDGERS.includes(ledgerRaw) ? ledgerRaw : '';
+        const ledger = ledgerRaw && getAllLedgers().includes(ledgerRaw) ? ledgerRaw : '';
         rows.push({ date, merchant, amount, hst, cat, ledger });
       }
     } else {
@@ -1528,13 +1591,14 @@ async function handleCSVUpload(event) {
       proc.textContent = '🤖 Excel 格式，AI 正在解析…';
       const base64 = btoa(unescape(encodeURIComponent(text)));
       const data = await callClaudeAPI({ model:'claude-haiku-4-5-20251001', max_tokens:2048,
-        messages:[{role:'user', content:`这是一份Excel账单的文本内容。提取所有消费交易，返回纯JSON数组：[{"date":"YYYY-MM-DD","merchant":"商家名","amount":数字,"hst":0,"cat":"分类","ledger":"账本或空字符串"}]\n分类从这里选：${FIN_CATS.join(',')}\n账本从这里选（如果文本中没有明确账本信息，留空字符串，不要猜测）：${FIN_LEDGERS.join(',')}\n\n${text.slice(0,3000)}`}] });
+        messages:[{role:'user', content:`这是一份Excel账单的文本内容。提取所有消费交易，返回纯JSON数组：[{"date":"YYYY-MM-DD","merchant":"商家名","amount":数字,"hst":0,"cat":"分类","ledger":"账本或空字符串"}]\n分类从这里选：${FIN_CATS.join(',')}\n账本从这里选（如果文本中没有明确账本信息，留空字符串，不要猜测）：${getAllLedgers().join(',')}\n\n${text.slice(0,3000)}`}] });
       rows = JSON.parse(data.content[0].text.replace(/\`\`\`json|\`\`\`/g,'').trim());
     }
 
     if(!rows.length) throw new Error('没有识别到任何交易，请确认文件格式');
     proc.style.display = 'none';
     pendingStatementTxns = rows;
+    document.getElementById('statement-ledger').innerHTML = getAllLedgers().map(l=>`<option>${l}</option>`).join('');
     renderStatementReview();
   } catch(e) {
     proc.style.display = 'none';
@@ -2166,6 +2230,7 @@ function openLedgerBatch() {
   // 未设置账本的优先，其余按日期倒序排后面
   const untagged = all.filter(b=>!b.ledger);
   lbBills = untagged.length ? untagged : [...all].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  document.getElementById('lb-master').innerHTML = '<option value="">— 选择 —</option>' + getAllLedgers().map(l=>`<option>${l}</option>`).join('');
   document.getElementById('lb-master').value = '';
   document.getElementById('lb-list').innerHTML = lbBills.map((b,i)=>`
     <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);">
@@ -2174,7 +2239,7 @@ function openLedgerBatch() {
         <div style="font-size:11px;color:var(--text3);">${b.date} · $${Number(b.amount).toFixed(2)}</div>
       </div>
       <select id="lb-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);">
-        ${FIN_LEDGERS.map(l=>`<option ${l===(b.ledger||'个人')?'selected':''}>${l}</option>`).join('')}
+        ${getAllLedgers().map(l=>`<option ${l===(b.ledger||'个人')?'selected':''}>${l}</option>`).join('')}
       </select>
     </div>`).join('');
   document.getElementById('ledger-batch-modal').classList.add('open');
@@ -2270,6 +2335,39 @@ function openVendorRules() {
   document.getElementById('vendor-rules-modal').classList.add('open');
 }
 function renderVendorRules() {
+  // ① 新增账本区域已在 HTML 里是静态结构，这里只刷新动态部分
+
+  // ② 自定义账本列表
+  const customListEl = document.getElementById('custom-ledger-list');
+  const customLedgers = appState.customLedgers || [];
+  if(customListEl) {
+    customListEl.innerHTML = customLedgers.length === 0
+      ? '<div style="font-size:12px;color:var(--text3);">还没有手工新增的账本。</div>'
+      : customLedgers.map(l=>`
+        <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--bg2);border-radius:6px;padding:4px 8px;margin:0 6px 6px 0;color:var(--text);">
+          <span style="width:8px;height:8px;border-radius:50%;background:${getLedgerColor(l)};display:inline-block;"></span>
+          ${esc(l)}
+          <span style="cursor:pointer;opacity:0.6;" onclick="removeCustomLedger('${esc(l)}')" title="删除账本">✕</span>
+        </span>`).join('');
+  }
+
+  // ③ 分类 → 账本 默认值设置
+  const catDefaultsEl = document.getElementById('cat-ledger-defaults-list');
+  if(catDefaultsEl) {
+    catDefaultsEl.innerHTML = FIN_CATS.map(cat=>{
+      const cur = lookupCatLedgerDefault(cat);
+      return `
+      <div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
+        <div style="flex:1;min-width:0;font-size:12px;color:var(--text);">${cat}</div>
+        <select id="cld-${cat}" onchange="updateCatLedgerDefault('${cat}')" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);">
+          <option value="">（不设默认）</option>
+          ${getAllLedgers().map(l=>`<option ${l===cur?'selected':''}>${l}</option>`).join('')}
+        </select>
+      </div>`;
+    }).join('');
+  }
+
+  // ④ 商家账本规则列表
   const map = appState.vendorLedgerMap || {};
   const entries = Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0]));
   const listEl = document.getElementById('vendor-rules-list');
@@ -2282,7 +2380,7 @@ function renderVendorRules() {
     <div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:0.5px solid var(--border);">
       <div style="flex:1;min-width:0;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(key)}</div>
       <select id="vr-${esc(key)}" onchange="updateVendorRule('${esc(key)}')" style="font-size:12px;padding:3px 6px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
-        ${FIN_LEDGERS.map(l=>`<option ${l===ledger?'selected':''}>${l}</option>`).join('')}
+        ${getAllLedgers().map(l=>`<option ${l===ledger?'selected':''}>${l}</option>`).join('')}
       </select>
       <span style="cursor:pointer;opacity:0.6;font-size:13px;" onclick="forgetVendorLedger('${esc(key)}')" title="删除此规则">🗑</span>
     </div>`).join('');
@@ -2292,6 +2390,43 @@ function updateVendorRule(key) {
   if(!sel || !appState.vendorLedgerMap) return;
   appState.vendorLedgerMap[key] = sel.value;
   saveAndSync();
+}
+
+// ── 手工新增账本 ────────────────────────────────────
+function addCustomLedger() {
+  const input = document.getElementById('new-ledger-name');
+  const name = (input.value||'').trim();
+  if(!name) { alert('请输入账本名称'); return; }
+  if(getAllLedgers().includes(name)) { alert('这个账本已经存在了'); return; }
+  if(!appState.customLedgers) appState.customLedgers = [];
+  appState.customLedgers.push(name);
+  input.value = '';
+  saveAndSync();
+  renderVendorRules();
+}
+function removeCustomLedger(name) {
+  const inUse = (appState.bills||[]).filter(b=>b.ledger===name).length;
+  if(inUse > 0 && !confirm(`「${name}」账本下还有 ${inUse} 笔账单，删除账本不会删除这些账单，但它们会保留这个账本名称（不在列表里也能正常显示）。确定删除这个账本选项吗？`)) return;
+  appState.customLedgers = (appState.customLedgers||[]).filter(l=>l!==name);
+  // 同时清理引用了这个账本的商家规则和分类默认值，避免列表里留着"幽灵选项"
+  Object.keys(appState.vendorLedgerMap||{}).forEach(k=>{ if(appState.vendorLedgerMap[k]===name) delete appState.vendorLedgerMap[k]; });
+  Object.keys(appState.catLedgerDefaults||{}).forEach(k=>{ if(appState.catLedgerDefaults[k]===name) delete appState.catLedgerDefaults[k]; });
+  saveAndSync();
+  renderVendorRules();
+}
+
+// ── 分类 → 账本 默认值（比如"所有Uber默认归到Guoqi Research"，
+//    但这里按分类设置，不是按商家——商家级别用上面的"商家账本规则"）─────
+function updateCatLedgerDefault(cat) {
+  const sel = document.getElementById('cld-'+cat);
+  if(!sel) return;
+  if(!appState.catLedgerDefaults) appState.catLedgerDefaults = {};
+  if(sel.value) appState.catLedgerDefaults[cat] = sel.value;
+  else delete appState.catLedgerDefaults[cat];
+  saveAndSync();
+}
+function lookupCatLedgerDefault(cat) {
+  return (appState.catLedgerDefaults||{})[cat] || null;
 }
 
 // ── 清空账单数据（保留商家规则与提醒清单） ─────────────
@@ -2330,6 +2465,7 @@ function downloadFile(filename, content, mime) {
 
 function openExportModal() {
   const prefs = JSON.parse(localStorage.getItem('fa_export_prefs')||'{}');
+  document.getElementById('exp-ledger').innerHTML = '<option value="__all__">全部账本</option>' + getAllLedgers().map(l=>`<option value="${l}">${l}</option>`).join('');
   document.getElementById('exp-ledger').value = prefs.ledger || 'Green Ring';
   document.getElementById('exp-period').value = prefs.period || 'quarter';
   document.getElementById('exp-detail').checked = prefs.detail !== false; // 默认勾选
@@ -2460,8 +2596,10 @@ function openBillModal(prefill) {
   document.getElementById('b-cat').value = prefill?.cat && FIN_CATS.includes(prefill.cat) ? prefill.cat : '其他';
   document.getElementById('b-note').value = prefill?.note ?? '';
   whoSel.value = prefill?.who || 'Jin';
-  const rememberedLedger = !prefill?.ledger ? lookupVendorLedger(prefill?.note) : null;
-  document.getElementById('b-ledger').value = prefill?.ledger && FIN_LEDGERS.includes(prefill.ledger) ? prefill.ledger : (rememberedLedger || '个人');
+  const finalCat = prefill?.cat && FIN_CATS.includes(prefill.cat) ? prefill.cat : '其他';
+  // 账本预选优先级：手动指定 > 商家记忆 > 该分类的默认账本 > 个人
+  const rememberedLedger = !prefill?.ledger ? (lookupVendorLedger(prefill?.note) || lookupCatLedgerDefault(finalCat)) : null;
+  document.getElementById('b-ledger').value = prefill?.ledger && getAllLedgers().includes(prefill.ledger) ? prefill.ledger : (rememberedLedger || '个人');
   document.getElementById('b-hst').value = prefill?.hst ?? '';
   const dw = document.getElementById('b-dup-warning');
   if(prefill?.dupWarning) { dw.textContent = prefill.dupWarning; dw.style.display = 'block'; }
@@ -2744,6 +2882,7 @@ async function handleStatementUpload(event) {
 
     proc.style.display = 'none';
     pendingStatementTxns = txns;
+    document.getElementById('statement-ledger').innerHTML = getAllLedgers().map(l=>`<option>${l}</option>`).join('');
     renderStatementReview();
   } catch(e) {
     proc.style.display = 'none';
@@ -2753,7 +2892,8 @@ async function handleStatementUpload(event) {
 
 function renderStatementReview() {
   const listEl = document.getElementById('statement-list');
-  const fallbackLedger = document.getElementById('statement-ledger').value || '个人';
+  const ledgerSel = document.getElementById('statement-ledger');
+  const fallbackLedger = ledgerSel.value || '个人';
   // 保留用户已手动调整过的逐行选择（重新渲染时不覆盖）
   pendingStatementTxns.forEach((t,i)=>{
     const existingLedgerSel = document.getElementById('stx-ledger-'+i);
@@ -2766,9 +2906,9 @@ function renderStatementReview() {
   listEl.innerHTML = pendingStatementTxns.map((t,i)=>{
     const dup = findDupBill(t.amount, t.date);
     t.__dup = !!dup;
-    // 账本优先级：用户已手动选过 > CSV/Cowork自带的ledger字段 > 商家记忆表 > 本批默认账本
-    const suggestedLedger = t.__userLedger || ((t.ledger && FIN_LEDGERS.includes(t.ledger)) ? t.ledger : (lookupVendorLedger(t.merchant) || fallbackLedger));
+    // 账本优先级：用户已手动选过 > CSV/Cowork自带的ledger字段 > 商家记忆表 > 该分类默认账本 > 本批默认账本
     const suggestedCat = t.__userCat || t.cat;
+    const suggestedLedger = t.__userLedger || ((t.ledger && getAllLedgers().includes(t.ledger)) ? t.ledger : (lookupVendorLedger(t.merchant) || lookupCatLedgerDefault(suggestedCat) || fallbackLedger));
     const isChecked = t.__userChecked !== undefined ? t.__userChecked : !dup;
     return `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);${dup?'background:var(--warn-bg);border-radius:8px;padding-left:6px;padding-right:6px;':''}">
@@ -2781,7 +2921,7 @@ function renderStatementReview() {
         ${FIN_CATS.map(c=>`<option ${c===suggestedCat?'selected':''}>${c}</option>`).join('')}
       </select>
       <select id="stx-ledger-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:100px;" title="此商家的账本">
-        ${FIN_LEDGERS.map(l=>`<option ${l===suggestedLedger?'selected':''}>${l}</option>`).join('')}
+        ${getAllLedgers().map(l=>`<option ${l===suggestedLedger?'selected':''}>${l}</option>`).join('')}
       </select>
       <div style="font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;">$${Number(t.amount||0).toFixed(2)}${Number(t.hst)>0?`<div style="font-size:10px;font-weight:400;color:var(--text3);text-align:right;">HST $${Number(t.hst).toFixed(2)}</div>`:''}</div>
     </div>`;}).join('');
@@ -3356,8 +3496,6 @@ function clearAIChat() {
       <label style="font-size:12px;color:var(--text2);flex-shrink:0;">全部设为：</label>
       <select id="lb-master" onchange="lbApplyMaster()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
         <option value="">— 选择 —</option>
-        <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
-        <option>出租房45</option><option>出租房15</option><option>住宅共用</option><option>待定</option>
       </select>
     </div>
     <div id="lb-list" style="flex:1;overflow-y:auto;min-height:80px;max-height:50vh;"></div>
@@ -3371,8 +3509,25 @@ function clearAIChat() {
 <div class="modal-wrap" id="vendor-rules-modal">
   <div class="modal" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column;">
     <div class="modal-title">📋 商家账本规则</div>
-    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">记账或导入账单时，选择账本会自动记住该商家以后的归类。这里可以查看、调整或删除已记住的规则。</p>
-    <div id="vendor-rules-list" style="flex:1;overflow-y:auto;min-height:80px;max-height:55vh;"></div>
+
+    <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid var(--border);">
+      <label class="fl">➕ 新建账本</label>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <input type="text" id="new-ledger-name" placeholder="账本名称（如 出租房新地址）" style="flex:1;font-size:13px;padding:7px 10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);" />
+        <button class="btn btn-sm" onclick="addCustomLedger()">+ 添加</button>
+      </div>
+      <div id="custom-ledger-list" style="display:flex;flex-wrap:wrap;"></div>
+    </div>
+
+    <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid var(--border);">
+      <label class="fl">🎯 分类默认账本</label>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:6px;">某个消费分类（如"Auto & Transport"）没有匹配到商家规则时，使用这里设置的默认账本。优先级低于「商家账本规则」。</p>
+      <div id="cat-ledger-defaults-list" style="max-height:160px;overflow-y:auto;"></div>
+    </div>
+
+    <label class="fl">🏪 商家账本规则</label>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px;">记账或导入账单时，选择账本会自动记住该商家以后的归类。优先级高于分类默认账本。</p>
+    <div id="vendor-rules-list" style="flex:1;overflow-y:auto;min-height:80px;max-height:30vh;"></div>
     <div class="modal-actions" style="margin-top:12px;">
       <button class="btn btn-primary" onclick="document.getElementById('vendor-rules-modal').classList.remove('open')">关闭</button>
     </div>
@@ -3407,8 +3562,6 @@ function clearAIChat() {
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
       <label style="font-size:12px;color:var(--text2);flex-shrink:0;">默认账本（无记忆时使用）：</label>
       <select id="statement-ledger" onchange="renderStatementReview()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
-        <option>个人</option><option>Guoqi Research</option><option>Green Ring</option>
-        <option>出租房45</option><option>出租房15</option><option>住宅共用</option><option>待定</option>
       </select>
     </div>
     <div id="statement-list" style="flex:1;overflow-y:auto;min-height:100px;max-height:50vh;"></div>
@@ -3426,14 +3579,6 @@ function clearAIChat() {
     <div class="form-row">
       <div style="flex:1"><label class="fl">公司/账本</label>
         <select id="exp-ledger">
-          <option value="__all__">全部账本</option>
-          <option value="Green Ring">Green Ring</option>
-          <option value="Guoqi Research">Guoqi Research</option>
-          <option value="个人">个人</option>
-          <option value="出租房45">出租房45</option>
-          <option value="出租房15">出租房15</option>
-          <option value="住宅共用">住宅共用</option>
-          <option value="待定">待定</option>
         </select>
       </div>
       <div style="flex:1"><label class="fl">周期</label>
