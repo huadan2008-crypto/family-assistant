@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.13 · 2026-06-22</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v3.15 · 2026-06-22</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -337,6 +337,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <button class="btn" onclick="openBillModal()">✏️ 手动记一笔</button>
       <button class="btn" onclick="openLedgerBatch()">🏷 批量设置账本</button>
       <button class="btn" onclick="openVendorRules()">📋 商家账本规则</button>
+      <button class="btn" onclick="openTrendModal()">📈 消费趋势</button>
       <button class="btn" onclick="openExportModal()">📊 导出结算单</button>
       <button class="btn" style="color:var(--danger-text);" onclick="openClearBillsModal()">🗑 清空账单数据</button>
     </div>
@@ -1266,6 +1267,14 @@ function saveMemberNote(memberId) {
 const FIN_CATS = ['Groceries','Dining','Hydro','Gas','Water & Waste','Internet','Mobile','Mortgage Interest','Property Tax','Home Insurance','Repairs & Maintenance','Auto & Transport','Education','Medical','Shopping','Entertainment','Travel','Subscriptions','Other'];
 const FIN_CAT_COLORS = {'Groceries':'#0F6E56','Dining':'#BA7517','Hydro':'#185FA5','Gas':'#F59E0B','Water & Waste':'#0891B2','Internet':'#534AB7','Mobile':'#7C3AED','Mortgage Interest':'#993C1D','Property Tax':'#854F0B','Home Insurance':'#B45309','Repairs & Maintenance':'#D97706','Auto & Transport':'#D4537E','Education':'#639922','Medical':'#C2410C','Shopping':'#8B5CF6','Entertainment':'#0891B2','Travel':'#0369A1','Subscriptions':'#5B21B6','Other':'#6B7280'};
 const FIN_LEDGERS = ['个人','Guoqi Research','Green Ring','出租房45','出租房15','住宅共用','待定'];
+// 需要原始凭证（收据/账单）才能用于CRA抵税申报的账本——公司和出租房。
+// 个人、住宅共用（部分比例抵扣，靠汇总不靠单张凭证）、待定不强制要求凭证。
+const LEDGERS_NEED_PROOF = ['Guoqi Research','Green Ring','出租房45','出租房15'];
+function ledgerNeedsProof(ledger) {
+  if(LEDGERS_NEED_PROOF.includes(ledger)) return true;
+  // 自定义账本默认也视为需要凭证（用户新建账本大多是为了细分公司/出租房用途）
+  return (appState.customLedgers||[]).includes(ledger);
+}
 const FIN_LEDGER_COLORS = {'个人':'#6B7280','Guoqi Research':'#185FA5','Green Ring':'#0F6E56','出租房45':'#BA7517','出租房15':'#854F0B','住宅共用':'#534AB7','待定':'#DC2626'};
 const CUSTOM_LEDGER_PALETTE = ['#0E7490','#9333EA','#C026D3','#65A30D','#E11D48','#0284C7','#CA8A04'];
 
@@ -1371,13 +1380,15 @@ function renderFinance() {
     : sortedBills.map(b => {
         const c = FIN_CAT_COLORS[b.cat]||'#6B7280';
         const whoName = b.who || '';
-        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);">
+        const needsProof = b.proofStatus === 'needs_proof';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:0.5px solid var(--border);${needsProof?'background:var(--accent-bg);border-radius:8px;padding-left:6px;padding-right:6px;':''}">
           <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;"></div>
           <div style="flex:1;min-width:0;">
             <div style="font-size:14px;color:var(--text);">${b.note||b.cat}</div>
-            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.hst?' · HST $'+Number(b.hst).toFixed(2):''}${b.receiptId?' · 📎':''}${b.ledger&&b.ledger!=='个人'?` · <span style="color:${getLedgerColor(b.ledger)};font-weight:600;">${b.ledger}</span>`:''}</div>
+            <div style="font-size:11px;color:var(--text3);">${b.date} · ${b.cat}${whoName?' · '+whoName:''}${b.hst?' · HST $'+Number(b.hst).toFixed(2):''}${b.receiptId?' · 📎':''}${b.ledger&&b.ledger!=='个人'?` · <span style="color:${getLedgerColor(b.ledger)};font-weight:600;">${b.ledger}</span>`:''}${needsProof?` · <span style="color:var(--accent-text);font-weight:600;">📎 需要凭证</span>`:''}</div>
           </div>
           <div style="font-size:15px;font-weight:600;color:var(--text);">$${Number(b.amount).toFixed(2)}</div>
+          ${needsProof?`<button onclick="useAsProof('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--accent-text);padding:4px 6px;font-weight:600;white-space:nowrap;" title="没有原始收据时，用这笔信用卡账单本身作为凭证归档">用作凭证</button>`:''}
           <button onclick="editBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">✏️</button>
           <button onclick="deleteBill('${b.id}')" style="background:none;border:none;cursor:pointer;font-size:13px;color:var(--text3);padding:4px;">🗑</button>
         </div>`;
@@ -1386,6 +1397,11 @@ function renderFinance() {
 
 // ── 收据单项分账 ──────────────────────────────────
 let pendingReceipt = null;
+// 暂存当前正在确认的账单对应的原始文件（base64+mimeType），
+// 等用户在记账弹窗里选完账本、点保存后，saveBill 会用它把同一份文件
+// 也归档一份到"会计师交接/账本/季度/"下（如果该账本需要凭证）。
+// 不在收据/PDF上传那一刻就按账本归档，因为那时候账本还没确定。
+let pendingArchiveData = null;
 
 function renderReceiptItems() {
   const { parsed } = pendingReceipt;
@@ -1410,7 +1426,7 @@ function renderReceiptItems() {
 }
 
 function confirmReceiptItems() {
-  const { parsed, billDate, receiptId } = pendingReceipt;
+  const { parsed, billDate, receiptId, base64, mimeType } = pendingReceipt;
   const items = parsed.items;
   // 按 账本+类别 分组
   const groups = {};
@@ -1452,25 +1468,34 @@ function confirmReceiptItems() {
       dup.cat = g.cat;
       dup.hst = totalHst;
       dup.receiptId = receiptId || dup.receiptId;
+      dup.proofStatus = 'has_proof';
       pendingReceipt = null;
       document.getElementById('receipt-items-modal').classList.remove('open');
       saveAndSync();
       renderFinance();
       toast('✅ 已用收据信息更新原账单');
+      if(base64 && mimeType) archiveToAccountingFolder(base64, mimeType, dup.ledger, dup.date, '收据').catch(e=>console.error('归档失败',e));
       return;
     }
   }
 
   let added = 0;
+  const archivedLedgers = new Set(); // 同一张收据可能拆给多个账本，每个账本只归档一份副本，不重复上传
   groupList.forEach(g=>{
     const hst = Math.round(g.hst * (scale||0) * 100)/100;
     const namesStr = g.names.slice(0,3).join('、') + (g.names.length>3?` 等${g.names.length}项`:'');
     appState.bills.push({
       id: uid(), amount: Math.round((g.pre + hst)*100)/100, date: billDate,
       cat: g.cat, note: `${parsed.merchant||''} - ${namesStr}`,
-      who: 'Jin', ledger: g.led, hst, receiptId: receiptId||'', created: new Date().toISOString()
+      who: 'Jin', ledger: g.led, hst, receiptId: receiptId||'',
+      proofStatus: receiptId ? 'has_proof' : undefined,
+      created: new Date().toISOString()
     });
     added++;
+    if(base64 && mimeType && !archivedLedgers.has(g.led)) {
+      archivedLedgers.add(g.led);
+      archiveToAccountingFolder(base64, mimeType, g.led, billDate, '收据').catch(e=>console.error('归档失败',e));
+    }
   });
   pendingReceipt = null;
   document.getElementById('receipt-items-modal').classList.remove('open');
@@ -1480,7 +1505,7 @@ function confirmReceiptItems() {
 }
 
 function riFallbackSingle() {
-  const { parsed, billDate, receiptId } = pendingReceipt;
+  const { parsed, billDate, receiptId, base64, mimeType } = pendingReceipt;
   pendingReceipt = null;
   document.getElementById('receipt-items-modal').classList.remove('open');
   const dup = findDupBill(parsed.amount, billDate);
@@ -1497,13 +1522,16 @@ function riFallbackSingle() {
       dup.cat = parsed.cat && FIN_CATS.includes(parsed.cat) ? parsed.cat : dup.cat;
       dup.hst = parsed.hst != null ? Number(parsed.hst)||0 : dup.hst;
       dup.receiptId = receiptId || dup.receiptId;
+      dup.proofStatus = 'has_proof'; // 用收据覆盖后，这笔账单现在有真实凭证支撑了
       rememberVendorLedger(dup.note, dup.ledger);
       saveAndSync();
       renderFinance();
       toast('✅ 已用收据信息更新原账单');
+      if(base64 && mimeType) archiveToAccountingFolder(base64, mimeType, dup.ledger, dup.date, '收据').catch(e=>console.error('归档失败',e));
       return;
     }
   }
+  pendingArchiveData = base64 ? { base64, mimeType, dateStr: billDate, prefix: '收据' } : null;
   openBillModal({
     amount: parsed.amount || '', date: billDate, cat: parsed.cat || '其他',
     note: parsed.merchant || '', hst: parsed.hst || '', receiptId: receiptId,
@@ -1514,6 +1542,7 @@ function riFallbackSingle() {
 // ── 取消收据弹窗（恢复 AI 多单项状态）────────────────
 function cancelBillModal() {
   document.getElementById('bill-modal').classList.remove('open');
+  pendingArchiveData = null; // 取消记账，清掉暂存的原始文件引用，避免脏数据带进下一次保存
   // 如果是从多单项流程来的，重新打开分账界面
   if(pendingReceipt) { renderReceiptItems(); }
 }
@@ -2273,6 +2302,41 @@ function findDupBill(amount, dateStr, excludeId) {
   }) || null;
 }
 
+// 商家名相似度：简单的归一化+词重叠判断，不引入复杂字符串距离算法。
+// 目的是避免"金额刚好相近但其实是两笔不同交易"被误判为重复——
+// 比如两次加油站消费金额相近但商家不同，不应该被当成同一笔。
+const MERCHANT_GENERIC_WORDS = new Set(['the','inc','ltd','corp','company','store','shop','station','gas','market','center','centre','restaurant','canada','toronto','ontario','services','service']);
+function merchantSimilar(a, b) {
+  const norm = s => (s||'').toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5\s]/g,' ').replace(/\s+/g,' ').trim();
+  const na = norm(a), nb = norm(b);
+  if(!na || !nb) return false;
+  if(na.includes(nb) || nb.includes(na)) return true; // 一个包含另一个（如"FIDO"和"FIDO MOBILE TORONTO"）
+  // 取较短一方的前6个字符做包含判断，兼容"WALMART CANADA 1110 OTTAWA" vs "Walmart"这种情况
+  const shortStr = na.length <= nb.length ? na : nb;
+  const longStr = na.length <= nb.length ? nb : na;
+  if(shortStr.length >= 4 && longStr.includes(shortStr.slice(0,Math.min(6,shortStr.length)))) return true;
+  // 词级重叠：至少有一个长度≥3、且不是通用词（如gas/station/canada）的词同时出现在两边，
+  // 避免"Shell Gas Station"和"Esso Gas Station"因共享"gas"、"station"被误判为同一商家
+  const wordsA = na.split(' ').filter(w=>w.length>=3 && !MERCHANT_GENERIC_WORDS.has(w));
+  const wordsB = nb.split(' ').filter(w=>w.length>=3 && !MERCHANT_GENERIC_WORDS.has(w));
+  return wordsA.some(w=>wordsB.includes(w));
+}
+
+// 信用卡账单导入专用的严格查重：金额+日期接近的基础上，还要求商家名有一定相似度，
+// 避免巧合金额相近但实际是两笔不同交易的情况被误判为"已经录入过"。
+function findDupBillStrict(amount, dateStr, merchant, excludeId) {
+  const amt = Number(amount)||0;
+  if(!amt || !dateStr) return null;
+  const target = new Date(dateStr + 'T12:00:00').getTime();
+  return (appState.bills||[]).find(b => {
+    if(excludeId && b.id === excludeId) return false;
+    if(Math.abs(Number(b.amount)-amt) > 0.01) return false;
+    const d = new Date((b.date||'') + 'T12:00:00').getTime();
+    if(Math.abs(d - target) > 5*864e5) return false;
+    return merchantSimilar(merchant, b.note);
+  }) || null;
+}
+
 // ── 固定支出提醒（用户手动标记，不做自动规律检测） ─────
 // recurringWatchlist: [{ key, label, cat }]  key 用商家/备注归一化文本做去重
 function watchlistKey(note, cat) {
@@ -2298,6 +2362,172 @@ function removeFromWatchlist(key) {
   saveAndSync();
   checkRecurringBills();
   renderFinance();
+}
+
+// ── 消费趋势 ──────────────────────────────────────
+function openTrendModal() {
+  document.getElementById('trend-modal').classList.add('open');
+  switchTrendTab('fixed');
+}
+function switchTrendTab(tab) {
+  document.getElementById('trend-fixed-panel').style.display = tab==='fixed' ? 'block' : 'none';
+  document.getElementById('trend-general-panel').style.display = tab==='general' ? 'block' : 'none';
+  document.getElementById('trend-tab-fixed').className = 'btn btn-sm' + (tab==='fixed' ? ' btn-primary' : '');
+  document.getElementById('trend-tab-general').className = 'btn btn-sm' + (tab==='general' ? ' btn-primary' : '');
+  if(tab==='fixed') renderTrendFixed();
+  else renderTrendGeneral();
+}
+
+// 最近 N 个月的 'YYYY-MM' 数组，从早到晚
+function lastNMonths(n) {
+  const months = [];
+  const now = new Date();
+  for(let i=n-1; i>=0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+    months.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);
+  }
+  return months;
+}
+
+const TREND_PALETTE = ['#185FA5','#0F6E56','#BA7517','#534AB7','#DC2626','#0E7490','#9333EA','#65A30D','#C2410C','#0369A1'];
+
+// ── 固定支出趋势：每个 watchlist 商家一条线 ──────────
+function renderTrendFixed() {
+  const n = parseInt(document.getElementById('trend-fixed-range').value) || 12;
+  const months = lastNMonths(n);
+  const watchlist = appState.recurringWatchlist || [];
+  const chartEl = document.getElementById('trend-fixed-chart');
+  const alertsEl = document.getElementById('trend-fixed-alerts');
+
+  if(watchlist.length === 0) {
+    chartEl.innerHTML = '<div style="font-size:13px;color:var(--text3);padding:20px 0;text-align:center;">还没有标记任何固定支出。记账时勾选「⏰ 加入月度提醒」即可在这里看到趋势。</div>';
+    alertsEl.innerHTML = '';
+    return;
+  }
+
+  const bills = appState.bills || [];
+  // 按 watchlist key 分组，每组按月汇总金额
+  const series = watchlist.map(w=>{
+    const byMonth = {};
+    months.forEach(m=>byMonth[m]=0);
+    bills.forEach(b=>{
+      if(watchlistKey(b.note,b.cat) !== w.key) return;
+      const m = (b.date||'').slice(0,7);
+      if(byMonth[m] !== undefined) byMonth[m] += Number(b.amount||0);
+    });
+    return { label: w.label, values: months.map(m=>byMonth[m]) };
+  }).filter(s=>s.values.some(v=>v>0)); // 隐藏完全没有数据的线，避免图表全是0线
+
+  if(series.length === 0) {
+    chartEl.innerHTML = '<div style="font-size:13px;color:var(--text3);padding:20px 0;text-align:center;">所选时间范围内，标记的固定支出还没有任何录入记录。</div>';
+    alertsEl.innerHTML = '';
+    return;
+  }
+
+  chartEl.innerHTML = buildLineChartSVG(months, series);
+
+  // 异常上涨提醒：比较最近一次有效金额 vs 之前的平均值，涨幅超过15%就提示
+  const alerts = [];
+  series.forEach(s=>{
+    const nonZero = s.values.filter(v=>v>0);
+    if(nonZero.length < 2) return;
+    const latest = nonZero[nonZero.length-1];
+    const priorAvg = nonZero.slice(0,-1).reduce((a,b)=>a+b,0) / (nonZero.length-1);
+    if(priorAvg > 0 && (latest - priorAvg)/priorAvg > 0.15) {
+      alerts.push(`<b>${esc(s.label)}</b>：最近一次 $${latest.toFixed(2)}，比之前平均 $${priorAvg.toFixed(2)} 高出 ${Math.round((latest-priorAvg)/priorAvg*100)}%`);
+    }
+  });
+  alertsEl.innerHTML = alerts.length
+    ? `<div style="background:var(--warn-bg);color:var(--warn-text);border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.7;">⚠️ 检测到可能的涨价：<br>${alerts.join('<br>')}</div>`
+    : '';
+}
+
+// ── 日常消费趋势：按分类汇总（排除已标记固定支出的账单） ──
+function renderTrendGeneral() {
+  const n = parseInt(document.getElementById('trend-general-range').value) || 12;
+  const months = lastNMonths(n);
+  const chartEl = document.getElementById('trend-general-chart');
+  const catSel = document.getElementById('trend-general-cat');
+
+  // 首次渲染填充分类下拉
+  if(catSel.options.length <= 1) {
+    catSel.innerHTML = '<option value="__all__">全部分类（汇总）</option>' + FIN_CATS.map(c=>`<option>${c}</option>`).join('');
+  }
+  const selectedCat = catSel.value || '__all__';
+
+  const watchKeys = new Set((appState.recurringWatchlist||[]).map(w=>w.key));
+  const bills = (appState.bills||[]).filter(b => !watchKeys.has(watchlistKey(b.note,b.cat)));
+
+  if(selectedCat === '__all__') {
+    // 每个分类一条线
+    const cats = [...new Set(bills.map(b=>b.cat).filter(Boolean))];
+    const series = cats.map(cat=>{
+      const byMonth = {};
+      months.forEach(m=>byMonth[m]=0);
+      bills.forEach(b=>{ if(b.cat===cat){ const m=(b.date||'').slice(0,7); if(byMonth[m]!==undefined) byMonth[m]+=Number(b.amount||0); } });
+      return { label: cat, values: months.map(m=>byMonth[m]) };
+    }).filter(s=>s.values.some(v=>v>0))
+      .sort((a,b)=>b.values.reduce((x,y)=>x+y,0)-a.values.reduce((x,y)=>x+y,0))
+      .slice(0,8); // 最多显示8条线，避免图表太乱
+    chartEl.innerHTML = series.length ? buildLineChartSVG(months, series) : '<div style="font-size:13px;color:var(--text3);padding:20px 0;text-align:center;">所选范围内没有数据。</div>';
+  } else {
+    // 单一分类：一条汇总线
+    const byMonth = {};
+    months.forEach(m=>byMonth[m]=0);
+    bills.forEach(b=>{ if(b.cat===selectedCat){ const m=(b.date||'').slice(0,7); if(byMonth[m]!==undefined) byMonth[m]+=Number(b.amount||0); } });
+    const series = [{ label: selectedCat, values: months.map(m=>byMonth[m]) }];
+    chartEl.innerHTML = series[0].values.some(v=>v>0) ? buildLineChartSVG(months, series) : '<div style="font-size:13px;color:var(--text3);padding:20px 0;text-align:center;">该分类在所选范围内没有数据。</div>';
+  }
+}
+
+// ── 通用 SVG 折线图构建（多条线，带图例、悬浮提示） ────
+function buildLineChartSVG(months, series) {
+  const W = 620, H = 280, padL = 50, padR = 16, padT = 16, padB = 36;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const maxVal = Math.max(1, ...series.flatMap(s=>s.values));
+  const stepX = months.length > 1 ? plotW/(months.length-1) : 0;
+  const yOf = v => padT + plotH - (v/maxVal)*plotH;
+  const xOf = i => padL + i*stepX;
+
+  // Y轴网格线（4条）
+  let gridLines = '';
+  for(let i=0;i<=4;i++) {
+    const v = maxVal*i/4;
+    const y = yOf(v);
+    gridLines += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--border)" stroke-width="1"/>`;
+    gridLines += `<text x="${padL-8}" y="${y+4}" font-size="10" fill="var(--text3)" text-anchor="end">$${Math.round(v)}</text>`;
+  }
+  // X轴标签：太多月份时只显示部分，避免重叠
+  const labelEvery = months.length > 12 ? 3 : (months.length > 6 ? 2 : 1);
+  let xLabels = '';
+  months.forEach((m,i)=>{
+    if(i % labelEvery !== 0 && i !== months.length-1) return;
+    xLabels += `<text x="${xOf(i)}" y="${H-padB+16}" font-size="10" fill="var(--text3)" text-anchor="middle">${m.slice(5)}</text>`;
+  });
+
+  let paths = '', dots = '', legend = '';
+  series.forEach((s,si)=>{
+    const color = TREND_PALETTE[si % TREND_PALETTE.length];
+    const points = s.values.map((v,i)=>`${xOf(i)},${yOf(v)}`).join(' ');
+    paths += `<polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    s.values.forEach((v,i)=>{
+      if(v>0) dots += `<circle cx="${xOf(i)}" cy="${yOf(v)}" r="3" fill="${color}"><title>${s.label} ${months[i]}: $${v.toFixed(2)}</title></circle>`;
+    });
+    legend += `<span style="display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text2);margin-right:12px;margin-bottom:4px;">
+      <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block;"></span>${esc(s.label)}
+    </span>`;
+  });
+
+  return `
+    <div style="overflow-x:auto;">
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;min-width:480px;height:auto;">
+        ${gridLines}
+        ${paths}
+        ${dots}
+        ${xLabels}
+      </svg>
+    </div>
+    <div style="margin-top:6px;">${legend}</div>`;
 }
 
 // ── 商家 → 账本 记忆表 ──────────────────────────────
@@ -2629,6 +2859,7 @@ function saveBill() {
   const amount = parseFloat(document.getElementById('b-amount').value);
   if(!amount || amount <= 0) { alert('请输入金额'); return; }
   const editId = document.getElementById('b-edit-id').value;
+  const receiptId = document.getElementById('b-receipt-id').value || '';
   const bill = {
     amount: amount,
     date: document.getElementById('b-date').value || new Date().toLocaleDateString('en-CA'),
@@ -2637,7 +2868,8 @@ function saveBill() {
     note: document.getElementById('b-note').value.trim(),
     ledger: document.getElementById('b-ledger').value,
     hst: parseFloat(document.getElementById('b-hst').value) || 0,
-    receiptId: document.getElementById('b-receipt-id').value || ''
+    receiptId: receiptId,
+    proofStatus: receiptId ? 'has_proof' : undefined // 有收据归档ID的，标记为已有凭证；没有的不动（手动记账默认不需要凭证状态）
   };
   if(!appState.bills) appState.bills = [];
   toggleWatchlist(bill.note, bill.cat, document.getElementById('b-watchlist').checked);
@@ -2650,6 +2882,12 @@ function saveBill() {
     bill.created = new Date().toISOString();
     appState.bills.push(bill);
   }
+  // 账本已确认，如果有暂存的原始文件（收据图片），现在归档一份到"会计师交接/账本/季度/"
+  if(pendingArchiveData) {
+    const { base64, mimeType, dateStr, prefix } = pendingArchiveData;
+    pendingArchiveData = null;
+    archiveToAccountingFolder(base64, mimeType, bill.ledger, dateStr || bill.date, prefix).catch(e=>console.error('归档失败',e));
+  }
   document.getElementById('bill-modal').classList.remove('open');
   saveAndSync();
   renderFinance();
@@ -2661,6 +2899,46 @@ function editBill(id) {
   if(b) openBillModal(b);
 }
 
+// 没有原始收据时，用户明确选择"用这笔信用卡账单本身作为凭证"——
+// 生成一份简单的文字版"费用说明"上传到会计师交接文件夹，作为没有实体收据时的替代凭证。
+// 这是用户主动确认的操作，系统不会自动决定要不要这样做。
+async function useAsProof(id) {
+  const b = (appState.bills||[]).find(b=>b.id===id);
+  if(!b) return;
+  const ok = confirm(
+    `用这笔信用卡账单记录作为凭证归档吗？\n${b.date} 「${b.note||b.cat}」 $${Number(b.amount).toFixed(2)} · ${b.ledger}\n\n` +
+    `这会生成一份简单的费用说明文件存进会计师交接文件夹，代替没有的原始收据。\n` +
+    `如果之后找到了原始收据，建议改用「拍照/上传收据」重新走一遍收据流程，收据信息会覆盖这份替代凭证。`
+  );
+  if(!ok) return;
+  const proofText = [
+    '费用说明（信用卡账单替代凭证）',
+    '─────────────────────',
+    `日期：${b.date}`,
+    `商家/说明：${b.note||b.cat}`,
+    `分类：${b.cat}`,
+    `金额：$${Number(b.amount).toFixed(2)}`,
+    b.hst ? `HST/GST：$${Number(b.hst).toFixed(2)}` : '',
+    `账本：${b.ledger}`,
+    '',
+    '说明：此交易来自信用卡账单导入，未能找到对应的原始收据。',
+    '此文件由用户在 Family Assistant 中手动确认生成，作为替代凭证使用。',
+    `生成时间：${new Date().toLocaleString('en-CA')}`
+  ].filter(Boolean).join('\n');
+  const base64 = btoa(unescape(encodeURIComponent(proofText)));
+  try {
+    const fileId = await archiveToAccountingFolder(base64, 'text/plain', b.ledger, b.date, '信用卡凭证说明');
+    b.proofStatus = 'self_proof';
+    if(fileId) b.receiptId = b.receiptId || fileId;
+    saveAndSync();
+    renderFinance();
+    toast('✅ 已作为凭证归档');
+  } catch(e) {
+    console.error('归档失败', e);
+    alert('归档失败，请检查网络后重试：' + e.message);
+  }
+}
+
 function deleteBill(id) {
   if(!confirm('确定删除这笔账单吗？')) return;
   appState.bills = (appState.bills||[]).filter(b=>b.id!==id);
@@ -2669,6 +2947,73 @@ function deleteBill(id) {
 }
 
 // ── 收据上传 + AI 识别 ────────────────────────────
+// ── 会计师交接归档：账本/季度 两层文件夹结构 ─────────────
+// 根目录"会计师交接"下，按账本分文件夹，账本下再按季度分文件夹。
+// 这样季度结束时可以把对应账本的整个季度文件夹直接打包发给会计师。
+let accountingRootFolderId = null;
+const ledgerFolderIdCache = {}; // ledger -> folderId
+const quarterFolderIdCache = {}; // `${ledger}|${quarter}` -> folderId
+
+function dateToQuarter(dateStr) {
+  const d = new Date((dateStr||new Date().toLocaleDateString('en-CA')) + 'T12:00:00');
+  const q = Math.floor(d.getMonth()/3) + 1;
+  return `${d.getFullYear()}-Q${q}`;
+}
+
+async function findOrCreateDriveFolder(name, parentId) {
+  const parentClause = parentId ? ` and '${parentId}' in parents` : '';
+  const q = encodeURIComponent(`name='${name.replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false${parentClause}`);
+  const res = await driveRequest(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`);
+  if(!res) return null;
+  const data = await res.json();
+  if(data.files && data.files.length) return data.files[0].id;
+  const body = { name, mimeType:'application/vnd.google-apps.folder' };
+  if(parentId) body.parents = [parentId];
+  const cr = await driveRequest('https://www.googleapis.com/drive/v3/files', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)
+  });
+  if(!cr) return null;
+  return (await cr.json()).id;
+}
+
+// 获取"账本/季度"这个目标文件夹的ID，自动创建不存在的层级，带内存缓存避免重复查询
+async function getAccountingFolderId(ledger, quarter) {
+  const cacheKey = `${ledger}|${quarter}`;
+  if(quarterFolderIdCache[cacheKey]) return quarterFolderIdCache[cacheKey];
+
+  if(!accountingRootFolderId) {
+    accountingRootFolderId = await findOrCreateDriveFolder('会计师交接', null);
+    if(!accountingRootFolderId) return null;
+  }
+  let ledgerFolderId = ledgerFolderIdCache[ledger];
+  if(!ledgerFolderId) {
+    ledgerFolderId = await findOrCreateDriveFolder(ledger, accountingRootFolderId);
+    if(!ledgerFolderId) return null;
+    ledgerFolderIdCache[ledger] = ledgerFolderId;
+  }
+  const quarterFolderId = await findOrCreateDriveFolder(quarter, ledgerFolderId);
+  if(quarterFolderId) quarterFolderIdCache[cacheKey] = quarterFolderId;
+  return quarterFolderId;
+}
+
+// 上传文件到"账本/季度"归档结构。type 用于文件名前缀区分（收据/固定支出账单/信用卡凭证）。
+async function archiveToAccountingFolder(base64Data, mimeType, ledger, dateStr, fileNamePrefix) {
+  if(!ledgerNeedsProof(ledger)) return null; // 个人/住宅共用/待定不需要归档给会计师
+  const quarter = dateToQuarter(dateStr);
+  const folderId = await getAccountingFolderId(ledger, quarter);
+  if(!folderId) return null;
+  const ext = mimeType.includes('pdf') ? 'pdf' : (mimeType.split('/')[1]==='jpeg'?'jpg':mimeType.split('/')[1]);
+  const fileName = `${fileNamePrefix}_${dateStr||quarter}_${Date.now().toString().slice(-6)}.${ext}`;
+  const boundary = '-------fa' + Date.now();
+  const meta = JSON.stringify({name:fileName, parents:[folderId]});
+  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n${base64Data}\r\n--${boundary}--`;
+  const res = await driveRequest('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', {
+    method:'POST', headers:{'Content-Type':`multipart/related; boundary=${boundary}`}, body
+  });
+  if(!res) return null;
+  return (await res.json()).id;
+}
+
 let receiptFolderId = null;
 
 async function findOrCreateReceiptFolder(yearMonth) {
@@ -2698,6 +3043,11 @@ async function findOrCreateReceiptFolder(yearMonth) {
   return (await cr2.json()).id;
 }
 
+// 收据原图先存进"收据归档/年月/"（不分账本，作为全量备份留底），
+// 拿到 receiptId 后即可继续后续流程；
+// 等用户在确认框里选完账本后，saveBill/confirmReceiptItems 会再调用
+// archiveToAccountingFolder 把同一份收据也复制一份到"会计师交接/账本/季度/"下
+// （如果该账本需要凭证）。两边都留底，一边是全量备份，一边是按账本整理好随时能发的版本。
 async function uploadReceiptToDrive(base64Data, mimeType, yearMonth, merchant) {
   const folderId = await findOrCreateReceiptFolder(yearMonth);
   const safeMerchant = (merchant||'').replace(/[\\/:*?"<>|]/g,'').slice(0,30);
@@ -2765,11 +3115,12 @@ async function handleReceiptUpload(event) {
     // Open modal with prefilled values for confirmation
     // 多单项收据 → 分账界面
     if(Array.isArray(parsed.items) && parsed.items.length > 1) {
-      pendingReceipt = { parsed, billDate, receiptId };
+      pendingReceipt = { parsed, billDate, receiptId, base64, mimeType: file.type };
       renderReceiptItems();
       return;
     }
     const dup = findDupBill(parsed.amount, billDate);
+    pendingArchiveData = { base64, mimeType: file.type, dateStr: billDate, prefix: '收据' };
     openBillModal({
       amount: parsed.amount || '',
       date: billDate,
@@ -2904,35 +3255,48 @@ function renderStatementReview() {
     if(existingCb) t.__userChecked = existingCb.checked;
   });
   listEl.innerHTML = pendingStatementTxns.map((t,i)=>{
-    const dup = findDupBill(t.amount, t.date);
+    // 信用卡账单导入用更严格的查重：金额+日期接近的基础上，还要求商家名有一定相似度，
+    // 避免巧合金额相近但实际是两笔不同交易的情况被误判为"已经录入过"。
+    const dup = findDupBillStrict(t.amount, t.date, t.merchant);
     t.__dup = !!dup;
     // 账本优先级：用户已手动选过 > CSV/Cowork自带的ledger字段 > 商家记忆表 > 该分类默认账本 > 本批默认账本
     const suggestedCat = t.__userCat || t.cat;
     const suggestedLedger = t.__userLedger || ((t.ledger && getAllLedgers().includes(t.ledger)) ? t.ledger : (lookupVendorLedger(t.merchant) || lookupCatLedgerDefault(suggestedCat) || fallbackLedger));
     const isChecked = t.__userChecked !== undefined ? t.__userChecked : !dup;
+    const needsProof = !dup && ledgerNeedsProof(suggestedLedger);
     return `
     <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:0.5px solid var(--border);${dup?'background:var(--warn-bg);border-radius:8px;padding-left:6px;padding-right:6px;':''}">
       <input type="checkbox" id="stx-${i}" ${isChecked?'checked':''} style="flex-shrink:0;width:16px;height:16px;" />
       <div style="flex:1;min-width:0;">
         <div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${t.merchant||'未知商家'}</div>
-        <div style="font-size:11px;color:var(--text3);">${t.date||'日期未知'}${dup?` · <span style="color:var(--warn-text);font-weight:600;">疑似重复：${dup.date} ${dup.note||dup.cat}</span>`:''}</div>
+        <div style="font-size:11px;color:var(--text3);">${t.date||'日期未知'}${dup?` · <span style="color:var(--warn-text);font-weight:600;">疑似重复：${dup.date} ${dup.note||dup.cat}</span>`:''}${needsProof?` · <span style="color:var(--accent-text);font-weight:600;">📎 需要收据/凭证</span>`:''}</div>
       </div>
-      <select id="stx-cat-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:90px;">
+      <select id="stx-cat-${i}" onchange="renderStatementReview()" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:90px;">
         ${FIN_CATS.map(c=>`<option ${c===suggestedCat?'selected':''}>${c}</option>`).join('')}
       </select>
-      <select id="stx-ledger-${i}" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:100px;" title="此商家的账本">
+      <select id="stx-ledger-${i}" onchange="renderStatementReview()" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:100px;" title="此商家的账本">
         ${getAllLedgers().map(l=>`<option ${l===suggestedLedger?'selected':''}>${l}</option>`).join('')}
       </select>
       <div style="font-size:14px;font-weight:600;color:var(--text);flex-shrink:0;">$${Number(t.amount||0).toFixed(2)}${Number(t.hst)>0?`<div style="font-size:10px;font-weight:400;color:var(--text3);text-align:right;">HST $${Number(t.hst).toFixed(2)}</div>`:''}</div>
     </div>`;}).join('');
   const total = pendingStatementTxns.reduce((s,t)=>s+Number(t.amount||0),0);
+  const proofCount = pendingStatementTxns.filter((t,i)=>{
+    const cb = document.getElementById('stx-'+i);
+    return cb && cb.checked && !t.__dup && ledgerNeedsProof(t.__userLedger || (document.getElementById('stx-ledger-'+i)?.value));
+  }).length;
   document.getElementById('statement-confirm-btn').textContent = `添加 ${pendingStatementTxns.length} 笔（共 $${total.toFixed(2)}）`;
+  const proofNote = document.getElementById('statement-proof-note');
+  if(proofNote) {
+    proofNote.innerHTML = proofCount > 0
+      ? `📎 其中 <b>${proofCount}</b> 笔归入公司/出租房账本，建议补充原始收据；没有收据的，确认导入后可在账单列表里点「用作凭证」`
+      : '';
+  }
   document.getElementById('statement-modal').classList.add('open');
 }
 
 function confirmStatementImport() {
   if(!appState.bills) appState.bills = [];
-  let added = 0;
+  let added = 0, needsProofCount = 0;
   pendingStatementTxns.forEach((t,i)=>{
     const cb = document.getElementById('stx-'+i);
     if(!cb || !cb.checked) return;
@@ -2941,6 +3305,11 @@ function confirmStatementImport() {
     const note = t.merchant || '';
     const ledger = ledgerSel ? ledgerSel.value : (document.getElementById('statement-ledger').value || '个人');
     rememberVendorLedger(note, ledger);
+    // proofStatus：信用卡账单导入的交易，如果归入公司/出租房账本，标记为"待补充凭证"；
+    // 否则（个人/住宅共用/待定）不需要凭证，标记为"无需凭证"。
+    // 这个字段只在导入时设置一次，后续用户可以通过"用作凭证"按钮或补充收据来更新它。
+    const proofStatus = ledgerNeedsProof(ledger) ? 'needs_proof' : 'no_proof_needed';
+    if(proofStatus === 'needs_proof') needsProofCount++;
     appState.bills.push({
       id: uid(),
       amount: Number(t.amount)||0,
@@ -2951,6 +3320,7 @@ function confirmStatementImport() {
       ledger: ledger,
       hst: Number(t.hst) || 0,
       receiptId: '',
+      proofStatus: proofStatus,
       created: new Date().toISOString()
     });
     added++;
@@ -2962,12 +3332,18 @@ function confirmStatementImport() {
   saveAndSync();
   renderFinance();
   const banner = document.getElementById('fin-import-banner');
-  document.getElementById('fin-import-banner-text').textContent = `✅ 已添加 ${added} 笔账单`;
+  document.getElementById('fin-import-banner-text').textContent = needsProofCount > 0
+    ? `✅ 已添加 ${added} 笔账单，其中 ${needsProofCount} 笔需要补充收据/凭证`
+    : `✅ 已添加 ${added} 笔账单`;
   banner.style.display = 'flex';
 }
 
 document.querySelectorAll('.modal-wrap').forEach(m=>{
-  m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open');});
+  m.addEventListener('click',e=>{
+    if(e.target!==m) return;
+    if(m.id === 'bill-modal') { cancelBillModal(); return; }
+    m.classList.remove('open');
+  });
 });
 document.addEventListener('DOMContentLoaded',()=>{
   const qi=document.getElementById('quick-input');
@@ -3565,9 +3941,56 @@ function clearAIChat() {
       </select>
     </div>
     <div id="statement-list" style="flex:1;overflow-y:auto;min-height:100px;max-height:50vh;"></div>
+    <div id="statement-proof-note" style="font-size:11px;color:var(--accent-text);margin-top:8px;"></div>
     <div class="modal-actions" style="margin-top:12px;">
       <button class="btn" onclick="document.getElementById('statement-modal').classList.remove('open')">取消</button>
       <button class="btn btn-primary" id="statement-confirm-btn" onclick="confirmStatementImport()">添加选中交易</button>
+    </div>
+  </div>
+</div>
+
+<!-- 消费趋势 Modal -->
+<div class="modal-wrap" id="trend-modal">
+  <div class="modal" style="max-width:680px;max-height:90vh;display:flex;flex-direction:column;">
+    <div class="modal-title">📈 消费趋势</div>
+    <div style="display:flex;gap:6px;margin-bottom:12px;border-bottom:0.5px solid var(--border);">
+      <button class="btn btn-sm" id="trend-tab-fixed" onclick="switchTrendTab('fixed')">⏰ 固定支出趋势</button>
+      <button class="btn btn-sm" id="trend-tab-general" onclick="switchTrendTab('general')">🛒 日常消费趋势</button>
+    </div>
+
+    <div id="trend-fixed-panel">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">显示你在「⏰ 加入月度提醒」标记过的固定支出，每个商家一条线，方便发现哪个在悄悄涨价（保险续保、电话套餐改价等）。</p>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <label style="font-size:12px;color:var(--text2);flex-shrink:0;">范围：</label>
+        <select id="trend-fixed-range" onchange="renderTrendFixed()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
+          <option value="6">最近6个月</option>
+          <option value="12" selected>最近12个月</option>
+          <option value="24">最近24个月</option>
+        </select>
+      </div>
+      <div id="trend-fixed-chart"></div>
+      <div id="trend-fixed-alerts" style="margin-top:10px;"></div>
+    </div>
+
+    <div id="trend-general-panel" style="display:none;">
+      <p style="font-size:12px;color:var(--text2);margin-bottom:8px;">日常消费（不含已标记固定支出）按分类汇总，看花钱节奏和趋势。</p>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <label style="font-size:12px;color:var(--text2);flex-shrink:0;">范围：</label>
+        <select id="trend-general-range" onchange="renderTrendGeneral()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
+          <option value="6">最近6个月</option>
+          <option value="12" selected>最近12个月</option>
+          <option value="24">最近24个月</option>
+        </select>
+        <label style="font-size:12px;color:var(--text2);flex-shrink:0;margin-left:8px;">分类：</label>
+        <select id="trend-general-cat" onchange="renderTrendGeneral()" style="font-size:12px;padding:4px 8px;border:0.5px solid var(--border2);border-radius:6px;background:var(--bg);color:var(--text);">
+          <option value="__all__">全部分类（汇总）</option>
+        </select>
+      </div>
+      <div id="trend-general-chart"></div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn btn-primary" onclick="document.getElementById('trend-modal').classList.remove('open')">关闭</button>
     </div>
   </div>
 </div>
