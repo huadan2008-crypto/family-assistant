@@ -168,7 +168,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v4.0 · 2026-06-22</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v4.1 · 2026-06-22</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -336,7 +336,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       </label>
       <button class="btn" onclick="openBillModal()">✏️ 手动记一笔</button>
       <button class="btn" onclick="openLedgerBatch()">🏷 批量设置账本</button>
-      <button class="btn" onclick="openVendorRules()">📋 商家账本规则</button>
+      <button class="btn" onclick="openVendorRules()">📋 账本与分类规则</button>
       <button class="btn" onclick="openTrendModal()">📈 消费趋势</button>
       <button class="btn" id="archive-queue-btn" onclick="openArchiveQueue()">📁 待归档</button>
       <button class="btn" onclick="openExportModal()">📊 导出结算单</button>
@@ -618,7 +618,7 @@ const MEMBERS=[
 // ── State ─────────────────────────────────────────
 let accessToken = null;
 let driveFileId = null;
-let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[], recipes:[], pantry:[], shopping:[], investments:[], recurringWatchlist:[], vendorLedgerMap:{}, customLedgers:[], catLedgerDefaults:{} };
+let appState = { tasks:[], appts:[], memberNotes:{}, bills:[], workLogs:[], recipes:[], pantry:[], shopping:[], investments:[], recurringWatchlist:[], vendorLedgerMap:{}, customLedgers:[], catLedgerDefaults:{}, customCategories:[] };
 let currentFilter = 'all';
 let selectedMember = null;
 const pickerSel = {};
@@ -1267,6 +1267,17 @@ function saveMemberNote(memberId) {
 // ── 财务模块 ──────────────────────────────────────
 const FIN_CATS = ['Groceries','Dining','Hydro','Gas','Water & Waste','Internet','Mobile','Mortgage Interest','Property Tax','Home Insurance','Repairs & Maintenance','Auto & Transport','Education','Medical','Shopping','Entertainment','Travel','Subscriptions','Other'];
 const FIN_CAT_COLORS = {'Groceries':'#0F6E56','Dining':'#BA7517','Hydro':'#185FA5','Gas':'#F59E0B','Water & Waste':'#0891B2','Internet':'#534AB7','Mobile':'#7C3AED','Mortgage Interest':'#993C1D','Property Tax':'#854F0B','Home Insurance':'#B45309','Repairs & Maintenance':'#D97706','Auto & Transport':'#D4537E','Education':'#639922','Medical':'#C2410C','Shopping':'#8B5CF6','Entertainment':'#0891B2','Travel':'#0369A1','Subscriptions':'#5B21B6','Other':'#6B7280'};
+const CUSTOM_CAT_PALETTE = ['#0E7490','#9333EA','#C026D3','#65A30D','#E11D48','#0284C7','#CA8A04'];
+// 获取所有分类（内置 + 用户手工新增的）。所有需要列出分类选项的地方都应调用这个函数，
+// 而不是直接用 getAllCats()，这样新增分类才能在全部位置（下拉框、AI识别提示、趋势统计等）自动生效。
+function getAllCats() {
+  return FIN_CATS.concat(appState.customCategories || []);
+}
+function getCatColor(cat) {
+  if(FIN_CAT_COLORS[cat]) return FIN_CAT_COLORS[cat];
+  const idx = (appState.customCategories||[]).indexOf(cat);
+  return idx >= 0 ? CUSTOM_CAT_PALETTE[idx % CUSTOM_CAT_PALETTE.length] : '#6B7280';
+}
 const FIN_LEDGERS = ['个人','Guoqi Research','Green Ring','出租房45','出租房15','住宅共用','待定'];
 // 需要原始凭证（收据/账单）才能用于CRA抵税申报的账本——公司和出租房。
 // 个人、住宅共用（部分比例抵扣，靠汇总不靠单张凭证）、待定不强制要求凭证。
@@ -1325,7 +1336,7 @@ function renderFinance() {
   document.getElementById('fin-cat-breakdown').innerHTML = sorted.length === 0
     ? '<div style="font-size:13px;color:var(--text3);">本月还没有账单</div>'
     : sorted.map(([cat,v]) => {
-        const c = FIN_CAT_COLORS[cat]||'#6B7280';
+        const c = getCatColor(cat);
         const pct = total>0 ? (v/total*100).toFixed(0) : 0;
         return `<div style="margin-bottom:8px;cursor:pointer;" onclick="aiAnalyzeCat('${cat}')" title="点击让 AI 分析此类别">
           <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px;">
@@ -1341,7 +1352,7 @@ function renderFinance() {
   // Trend cat selector — populate once
   const sel = document.getElementById('fin-trend-cat');
   if(sel.options.length === 1) {
-    FIN_CATS.forEach(c => { const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
+    getAllCats().forEach(c => { const o=document.createElement('option'); o.value=c; o.textContent=c; sel.appendChild(o); });
   }
 
   // Trend chart: last 6 months ending at viewed month
@@ -1355,7 +1366,7 @@ function renderFinance() {
     .filter(b => (b.date||'').startsWith(mo) && (selCat==='__all__' || b.cat===selCat))
     .reduce((s,b)=>s+Number(b.amount||0),0));
   const maxBar = Math.max(...vals, 1);
-  const barColor = selCat==='__all__' ? 'var(--accent)' : (FIN_CAT_COLORS[selCat]||'var(--accent)');
+  const barColor = selCat==='__all__' ? 'var(--accent)' : getCatColor(selCat);
 
   document.getElementById('fin-trend-chart').innerHTML = `
     <div style="display:flex;align-items:flex-end;gap:8px;height:140px;padding-top:10px;">
@@ -1384,7 +1395,7 @@ function renderFinance() {
   listEl.innerHTML = sortedBills.length === 0
     ? `<div style="font-size:13px;color:var(--text3);">${selCat==='__all__'?'点上方按钮添加第一笔账单':'本月没有「'+selCat+'」类支出'}</div>`
     : sortedBills.map(b => {
-        const c = FIN_CAT_COLORS[b.cat]||'#6B7280';
+        const c = getCatColor(b.cat);
         const whoName = b.who || '';
         const needsProof = b.proofStatus === 'needs_proof';
         const pendingArchive = b.archiveStatus === 'pending';
@@ -1423,7 +1434,7 @@ function renderReceiptItems() {
         <div style="font-size:11px;color:var(--text3);">$${Number(it.amount||0).toFixed(2)}${it.taxable?' +HST':''}</div>
       </div>
       <select id="ri-cat-${i}" style="font-size:11px;padding:3px 4px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:86px;">
-        ${FIN_CATS.map(c=>`<option ${c===(parsed.cat||'其他')?'selected':''}>${c}</option>`).join('')}
+        ${getAllCats().map(c=>`<option ${c===(parsed.cat||'其他')?'selected':''}>${c}</option>`).join('')}
       </select>
       <select id="ri-led-${i}" style="font-size:11px;padding:3px 4px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:104px;">
         ${getAllLedgers().map(l=>`<option ${l===(lookupVendorLedger(parsed.merchant)||lookupCatLedgerDefault(it.cat||parsed.cat||'其他')||'个人')?'selected':''}>${l}</option>`).join('')}
@@ -1530,7 +1541,7 @@ function riFallbackSingle() {
     );
     if(ok) {
       dup.note = parsed.merchant || dup.note;
-      dup.cat = parsed.cat && FIN_CATS.includes(parsed.cat) ? parsed.cat : dup.cat;
+      dup.cat = parsed.cat && getAllCats().includes(parsed.cat) ? parsed.cat : dup.cat;
       dup.hst = parsed.hst != null ? Number(parsed.hst)||0 : dup.hst;
       dup.receiptId = receiptId || dup.receiptId;
       dup.proofStatus = 'has_proof'; // 用收据覆盖后，这笔账单现在有真实凭证支撑了
@@ -1621,7 +1632,7 @@ async function handleCSVUpload(event) {
         const merchant = clean[descCol]||'';
         const hst = hstCol>=0 ? (parseFloat((clean[hstCol]||'').replace(/[$,\s]/g,''))||0) : 0;
         const catRaw = catCol>=0 ? clean[catCol] : '';
-        const cat = catRaw && FIN_CATS.includes(catRaw) ? catRaw : guessCat(merchant);
+        const cat = catRaw && getAllCats().includes(catRaw) ? catRaw : guessCat(merchant);
         const ledgerRaw = ledgerCol>=0 ? clean[ledgerCol] : '';
         const ledger = ledgerRaw && getAllLedgers().includes(ledgerRaw) ? ledgerRaw : '';
         rows.push({ date, merchant, amount, hst, cat, ledger });
@@ -1631,7 +1642,7 @@ async function handleCSVUpload(event) {
       proc.textContent = '🤖 Excel 格式，AI 正在解析…';
       const base64 = btoa(unescape(encodeURIComponent(text)));
       const data = await callClaudeAPI({ model:'claude-haiku-4-5-20251001', max_tokens:2048,
-        messages:[{role:'user', content:`这是一份Excel账单的文本内容。提取所有消费交易，返回纯JSON数组：[{"date":"YYYY-MM-DD","merchant":"商家名","amount":数字,"hst":0,"cat":"分类","ledger":"账本或空字符串"}]\n分类从这里选：${FIN_CATS.join(',')}\n账本从这里选（如果文本中没有明确账本信息，留空字符串，不要猜测）：${getAllLedgers().join(',')}\n\n${text.slice(0,3000)}`}] });
+        messages:[{role:'user', content:`这是一份Excel账单的文本内容。提取所有消费交易，返回纯JSON数组：[{"date":"YYYY-MM-DD","merchant":"商家名","amount":数字,"hst":0,"cat":"分类","ledger":"账本或空字符串"}]\n分类从这里选：${getAllCats().join(',')}\n账本从这里选（如果文本中没有明确账本信息，留空字符串，不要猜测）：${getAllLedgers().join(',')}\n\n${text.slice(0,3000)}`}] });
       rows = JSON.parse(data.content[0].text.replace(/\`\`\`json|\`\`\`/g,'').trim());
     }
 
@@ -2462,7 +2473,7 @@ function renderTrendGeneral() {
 
   // 首次渲染填充分类下拉
   if(catSel.options.length <= 1) {
-    catSel.innerHTML = '<option value="__all__">全部分类（汇总）</option>' + FIN_CATS.map(c=>`<option>${c}</option>`).join('');
+    catSel.innerHTML = '<option value="__all__">全部分类（汇总）</option>' + getAllCats().map(c=>`<option>${c}</option>`).join('');
   }
   const selectedCat = catSel.value || '__all__';
 
@@ -2693,10 +2704,24 @@ function renderVendorRules() {
         </span>`).join('');
   }
 
+  // ②.5 自定义分类列表
+  const customCatListEl = document.getElementById('custom-cat-list');
+  const customCats = appState.customCategories || [];
+  if(customCatListEl) {
+    customCatListEl.innerHTML = customCats.length === 0
+      ? '<div style="font-size:12px;color:var(--text3);">还没有手工新增的分类。</div>'
+      : customCats.map(c=>`
+        <span style="display:inline-flex;align-items:center;gap:4px;font-size:12px;background:var(--bg2);border-radius:6px;padding:4px 8px;margin:0 6px 6px 0;color:var(--text);">
+          <span style="width:8px;height:8px;border-radius:50%;background:${getCatColor(c)};display:inline-block;"></span>
+          ${esc(c)}
+          <span style="cursor:pointer;opacity:0.6;" onclick="removeCustomCategory('${esc(c)}')" title="删除分类">✕</span>
+        </span>`).join('');
+  }
+
   // ③ 分类 → 账本 默认值设置
   const catDefaultsEl = document.getElementById('cat-ledger-defaults-list');
   if(catDefaultsEl) {
-    catDefaultsEl.innerHTML = FIN_CATS.map(cat=>{
+    catDefaultsEl.innerHTML = getAllCats().map(cat=>{
       const cur = lookupCatLedgerDefault(cat);
       return `
       <div style="display:flex;align-items:center;gap:8px;padding:5px 0;">
@@ -2757,6 +2782,28 @@ function removeCustomLedger(name) {
   renderVendorRules();
 }
 
+// ── 手工新增分类（与账本管理逻辑对称） ──────────────────
+function addCustomCategory() {
+  const input = document.getElementById('new-cat-name');
+  const name = (input.value||'').trim();
+  if(!name) { alert('请输入分类名称'); return; }
+  if(getAllCats().includes(name)) { alert('这个分类已经存在了'); return; }
+  if(!appState.customCategories) appState.customCategories = [];
+  appState.customCategories.push(name);
+  input.value = '';
+  saveAndSync();
+  renderVendorRules();
+}
+function removeCustomCategory(name) {
+  const inUse = (appState.bills||[]).filter(b=>b.cat===name).length;
+  if(inUse > 0 && !confirm(`「${name}」分类下还有 ${inUse} 笔账单，删除分类不会删除这些账单，但它们会保留这个分类名称（不在列表里也能正常显示）。确定删除这个分类选项吗？`)) return;
+  appState.customCategories = (appState.customCategories||[]).filter(c=>c!==name);
+  // 同时清理引用了这个分类的"分类默认账本"设置，避免留着"幽灵选项"
+  if(appState.catLedgerDefaults && appState.catLedgerDefaults[name]) delete appState.catLedgerDefaults[name];
+  saveAndSync();
+  renderVendorRules();
+}
+
 // ── 分类 → 账本 默认值（比如"所有Uber默认归到Guoqi Research"，
 //    但这里按分类设置，不是按商家——商家级别用上面的"商家账本规则"）─────
 function updateCatLedgerDefault(cat) {
@@ -2812,7 +2859,7 @@ function openExportModal() {
   document.getElementById('exp-period').value = prefs.period || 'quarter';
   document.getElementById('exp-detail').checked = prefs.detail !== false; // 默认勾选
   const catList = document.getElementById('exp-cat-list');
-  catList.innerHTML = FIN_CATS.map(c=>`
+  catList.innerHTML = getAllCats().map(c=>`
     <label style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--text2);cursor:pointer;">
       <input type="checkbox" class="exp-cat-cb" value="${c}" ${prefs.cats && prefs.cats.includes(c)?'checked':''} />${c}
     </label>`).join('');
@@ -2935,10 +2982,10 @@ function openBillModal(prefill) {
   document.getElementById('bill-modal-title').textContent = prefill && prefill.id ? '编辑账单' : '记一笔支出';
   document.getElementById('b-amount').value = prefill?.amount ?? '';
   document.getElementById('b-date').value = prefill?.date ?? new Date().toLocaleDateString('en-CA');
-  document.getElementById('b-cat').value = prefill?.cat && FIN_CATS.includes(prefill.cat) ? prefill.cat : '其他';
+  document.getElementById('b-cat').value = prefill?.cat && getAllCats().includes(prefill.cat) ? prefill.cat : '其他';
   document.getElementById('b-note').value = prefill?.note ?? '';
   whoSel.value = prefill?.who || 'Jin';
-  const finalCat = prefill?.cat && FIN_CATS.includes(prefill.cat) ? prefill.cat : '其他';
+  const finalCat = prefill?.cat && getAllCats().includes(prefill.cat) ? prefill.cat : '其他';
   // 账本预选优先级：手动指定 > 商家记忆 > 该分类的默认账本 > 个人
   const rememberedLedger = !prefill?.ledger ? (lookupVendorLedger(prefill?.note) || lookupCatLedgerDefault(finalCat)) : null;
   document.getElementById('b-ledger').value = prefill?.ledger && getAllLedgers().includes(prefill.ledger) ? prefill.ledger : (rememberedLedger || '个人');
@@ -3230,7 +3277,7 @@ async function handleReceiptUpload(event) {
       messages:[{role:'user', content:[
         {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
         {type:'text', text:`识别这张收据，返回纯JSON（不要任何其他文字、不要markdown）：
-{"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "hst": 收据上标注的HST或GST税额总数字（没有就是0）, "cat": "从这些分类中选一个：${FIN_CATS.join('、')}", "items": [{"name":"单项商品名","amount":税前价格数字,"taxable":true或false}]}
+{"amount": 总金额数字, "date": "YYYY-MM-DD格式日期", "merchant": "商家名", "hst": 收据上标注的HST或GST税额总数字（没有就是0）, "cat": "从这些分类中选一个：${getAllCats().join('、')}", "items": [{"name":"单项商品名","amount":税前价格数字,"taxable":true或false}]}
 规则：
 - items：购物类收据（超市、Costco、Canadian Tire等）逐项列出每个商品；单一服务账单（油费、餐费）items留空数组
 - taxable：该商品是否需缴HST（安省食品杂货大多免税false，日用品电器等为true）；以收据上的税码标记为准
@@ -3359,7 +3406,7 @@ async function handleStatementUpload(event) {
 [{"date":"YYYY-MM-DD","merchant":"商家名","amount":金额数字,"hst":HST或GST税额数字,"cat":"分类"}]
 
 规则：
-- 分类必须从这些里选：${FIN_CATS.join('、')}
+- 分类必须从这些里选：${getAllCats().join('、')}
 - 只提取消费/扣款，跳过还款记录（如 PAYMENT THANK YOU）、退款和利息调整
 - 金额用正数
 - hst：账单上明确标注的HST/GST税额（如电话费、水电账单上的税额行）；信用卡月结单逐笔交易通常不显示税额，此时hst填0
@@ -3415,7 +3462,7 @@ function renderStatementReview() {
         <div style="font-size:11px;color:var(--text3);">${t.date||'日期未知'}${dup?` · <span style="color:var(--warn-text);font-weight:600;">疑似重复：${dup.date} ${dup.note||dup.cat}</span>`:''}${needsProof?` · <span style="color:var(--accent-text);font-weight:600;">📎 需要收据/凭证</span>`:''}</div>
       </div>
       <select id="stx-cat-${i}" onchange="renderStatementReview()" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:90px;">
-        ${FIN_CATS.map(c=>`<option ${c===suggestedCat?'selected':''}>${c}</option>`).join('')}
+        ${getAllCats().map(c=>`<option ${c===suggestedCat?'selected':''}>${c}</option>`).join('')}
       </select>
       <select id="stx-ledger-${i}" onchange="renderStatementReview()" style="font-size:11px;padding:3px 5px;border:0.5px solid var(--border2);border-radius:5px;background:var(--bg);color:var(--text);max-width:100px;" title="此商家的账本">
         ${getAllLedgers().map(l=>`<option ${l===suggestedLedger?'selected':''}>${l}</option>`).join('')}
@@ -3541,10 +3588,10 @@ function buildFinancePrompt() {
     const d = new Date(today.getFullYear(), today.getMonth()-i, 1);
     months.push(`${d.getFullYear()}-${pad(d.getMonth()+1)}`);
   }
-  let trendTable = '月份 | ' + FIN_CATS.join(' | ') + ' | 合计\n';
+  let trendTable = '月份 | ' + getAllCats().join(' | ') + ' | 合计\n';
   months.forEach(mo => {
     const moBills = bills.filter(b=>(b.date||'').startsWith(mo));
-    const row = FIN_CATS.map(c => moBills.filter(b=>b.cat===c).reduce((s,b)=>s+Number(b.amount||0),0).toFixed(0));
+    const row = getAllCats().map(c => moBills.filter(b=>b.cat===c).reduce((s,b)=>s+Number(b.amount||0),0).toFixed(0));
     const tot = moBills.reduce((s,b)=>s+Number(b.amount||0),0).toFixed(0);
     trendTable += mo + ' | ' + row.join(' | ') + ' | ' + tot + '\n';
   });
@@ -4027,7 +4074,7 @@ function clearAIChat() {
 
 <div class="modal-wrap" id="vendor-rules-modal">
   <div class="modal" style="max-width:480px;max-height:85vh;display:flex;flex-direction:column;">
-    <div class="modal-title">📋 商家账本规则</div>
+    <div class="modal-title">📋 账本与分类规则</div>
 
     <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid var(--border);">
       <label class="fl">➕ 新建账本</label>
@@ -4036,6 +4083,15 @@ function clearAIChat() {
         <button class="btn btn-sm" onclick="addCustomLedger()">+ 添加</button>
       </div>
       <div id="custom-ledger-list" style="display:flex;flex-wrap:wrap;"></div>
+    </div>
+
+    <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid var(--border);">
+      <label class="fl">➕ 新建分类</label>
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <input type="text" id="new-cat-name" placeholder="分类名称（如 Hot Water Tank）" style="flex:1;font-size:13px;padding:7px 10px;border:0.5px solid var(--border2);border-radius:8px;background:var(--bg);color:var(--text);" />
+        <button class="btn btn-sm" onclick="addCustomCategory()">+ 添加</button>
+      </div>
+      <div id="custom-cat-list" style="display:flex;flex-wrap:wrap;"></div>
     </div>
 
     <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:0.5px solid var(--border);">
