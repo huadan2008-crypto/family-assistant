@@ -169,7 +169,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v4.2 · 2026-06-22</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v4.3 · 2026-07-27</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -3008,6 +3008,8 @@ function checkRecurringBills() {
 }
 
 function openBillModal(prefill) {
+  const catSel = document.getElementById('b-cat');
+  catSel.innerHTML = getAllCats().map(c=>`<option value="${c}">${c}</option>`).join('');
   const whoSel = document.getElementById('b-who');
   whoSel.innerHTML = MEMBERS.map(mm=>`<option value="${mm.name}">${mm.name}</option>`).join('');
   document.getElementById('bill-modal-title').textContent = prefill && prefill.id ? '编辑账单' : '记一笔支出';
