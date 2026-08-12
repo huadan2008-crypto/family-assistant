@@ -169,7 +169,7 @@ label.fl{font-size:12px;color:var(--text2);margin-bottom:6px;display:block;}
       <div style="font-size:40px;">🏠</div>
       <div style="font-size:22px;font-weight:700;color:var(--text);margin-top:6px;">家庭助手</div>
       <div style="font-size:13px;color:var(--text3);margin-top:4px;" id="home-date"></div>
-      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v4.3 · 2026-07-27</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px;opacity:0.7;">v4.4 · 2026-08-12</div>
     </div>
     <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:14px;">
       <div class="module-card" onclick="enterModule('schedule')">
@@ -3306,7 +3306,7 @@ async function handleReceiptUpload(event) {
     // Claude vision
     const data = await callClaudeAPI({
       model:'claude-haiku-4-5-20251001',
-      max_tokens:300,
+      max_tokens:1500,
       messages:[{role:'user', content:[
         {type:'image', source:{type:'base64', media_type:file.type, data:base64}},
         {type:'text', text:`识别这张收据，返回纯JSON（不要任何其他文字、不要markdown）：
@@ -3321,7 +3321,13 @@ async function handleReceiptUpload(event) {
     let parsed;
     try {
       parsed = JSON.parse(data.content[0].text.replace(/```json|```/g,'').trim());
-    } catch(e) { throw new Error('AI返回格式异常，请手动记账'); }
+    } catch(e) {
+      const raw = (data.content[0].text||'').slice(0,150);
+      if(data.stop_reason === 'max_tokens') {
+        throw new Error('收据商品项太多，AI回复被截断，请重试一次（已放宽长度上限）');
+      }
+      throw new Error('AI返回格式异常，请手动记账。原始返回：' + raw);
+    }
 
     // Upload receipt image to Drive
     proc.textContent = '📤 正在归档收据到 Google Drive…';
